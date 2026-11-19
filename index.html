@@ -23,7 +23,7 @@ import {WorkshopSession,workshopRules,eventAmount} from './workshop-state.mjs';
 import {InteractionGate,giftPlan,referenceRules} from './interaction-plan.mjs';
 import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs';
 import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=stay-score-1';
-import {createPrinterHeat,paintChampion,updatePortraitLeaders} from './workshop-machinery.mjs?v=champion-4';
+import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-5';
 import {GiftDirector} from './gift-director.mjs?v=frame-right-4';
 const interactionGate=new InteractionGate();
 import {EventAudit} from './event-audit.mjs';
@@ -373,7 +373,7 @@ const championFrames=[1,2].map(rank=>{
  face.castShadow=false;
  return {rank,group,faceTexture,shown:undefined,shownAvatar:undefined};
 });
-const champions={live:[],demo:[]},viewerSince={live:new Map()};
+const champions={live:[],demo:[]},viewerSince={live:new Map()},viewerActivity=new Map();
 let championAspect=0;
 function fitChampionFrames(){
  if(championAspect===camera.aspect&&!championLayoutDirty)return;
@@ -450,7 +450,7 @@ function recordCompletedLeader(job,product){
  const group=job.live?'live':'demo';
  if(job.live&&!job.userId)return;
  const avatar=product?.avatarMat?.map?.image||null;
- const record={name:job.name,userId:job.userId||('demo:'+String(job.name||'观众')),score:job.score,avatar};
+ const record={name:job.name,userId:job.userId||('demo:'+String(job.name||'观众')),score:job.score,avatar,lastActiveAt:Date.now()};
  if(!updatePortraitLeaders(champions[group],record))return;
  showChampion();
  if(!avatar){
@@ -897,10 +897,15 @@ function add(v,isLive=true){
  workshopSession.observe({...v,type},isLive);
  if(['comment','like','gift','follow','join','fansclub','share'].includes(type)){
   if(isLive&&v.userId){
-   const key=String(v.userId),since=viewerSince.live.get(key)??Date.now();
+   const key=String(v.userId),now=Date.now(),since=viewerSince.live.get(key)??now;
    viewerSince.live.delete(key);
    viewerSince.live.set(key,since);
    if(viewerSince.live.size>16000)viewerSince.live.delete(viewerSince.live.keys().next().value);
+   viewerActivity.delete(key);
+   viewerActivity.set(key,now);
+   if(viewerActivity.size>16000)viewerActivity.delete(viewerActivity.keys().next().value);
+   const leader=champions.live.find(entry=>entry.userId===key);
+   if(leader)leader.lastActiveAt=now;
   }
   let resultReason='',added=0;
   liveRoom=liveRoom||v.room||'';
@@ -1231,7 +1236,7 @@ function workshopSnapshot(){
     progress:busy?(phase==='printing'?Math.round(Math.min(1,elapsed/printDuration)*100):100):0,phase,
     next:queue.slice(0,3).map(j=>({name:j.name,priority:j.priority,live:!!j.live}))};
 }
-let workshopTick=0;function updateWorkshop(){const s=workshopSnapshot();workshopHUD.render(s);if(mirrorConnected&&iAmLeader()&&++workshopTick%4===0)sceneChan.postMessage({type:'view-workshop',state:s})}
+let workshopTick=0,lastLeaderExpiryCheck=0;function updateWorkshop(){const now=Date.now();if(now-lastLeaderExpiryCheck>=5000){lastLeaderExpiryCheck=now;if(expirePortraitLeaders(champions.live,viewerActivity,now))showChampion()}const s=workshopSnapshot();workshopHUD.render(s);if(mirrorConnected&&iAmLeader()&&++workshopTick%4===0)sceneChan.postMessage({type:'view-workshop',state:s})}
 updateWorkshop();setInterval(updateWorkshop,250);
 window.workshopDiagnostics=()=>({state:workshopSnapshot(),real:workshopSession.snapshot(true),demo:workshopSession.snapshot(false),pageErrors:window.__pageErrors||[],cameraMode:giftDirector.mode,cameraMoving:!!giftDirector.transition,product:currentProduct?{factor:currentProduct.factor,...currentProduct.g.userData,avatarPixels:currentProduct.avatarMat.map?.image?[currentProduct.avatarMat.map.image.width,currentProduct.avatarMat.map.image.height]:null,fxPhase:currentProduct.giftFX?.phase}:null,audit:eventAudit.rows.slice(0,30)});
 

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {updatePortraitLeaders} from './workshop-machinery.mjs';
+import {updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs';
 
 test('two distinct viewers remain ranked through repeated copies and new high scores',()=>{
   const leaders=[];
@@ -23,4 +23,19 @@ test('a nickname without a stable viewer id cannot merge or promote live records
   const leaders=[];
   assert.equal(updatePortraitLeaders(leaders,{name:'同名观众',score:91}),false);
   assert.equal(leaders.length,0);
+});
+
+test('live leaders expire after five minutes without real interaction and the next rank moves up',()=>{
+  const leaders=[
+    {userId:'one',score:99,lastActiveAt:1000},
+    {userId:'two',score:96,lastActiveAt:1000}
+  ];
+  const activity=new Map([['one',1000],['two',301000]]);
+  assert.equal(expirePortraitLeaders(leaders,activity,300999),false);
+  assert.deepEqual(leaders.map(entry=>entry.userId),['one','two']);
+  activity.set('one',301000);
+  assert.equal(expirePortraitLeaders(leaders,activity,301000),false);
+  activity.set('two',601000);
+  assert.equal(expirePortraitLeaders(leaders,activity,601000),true);
+  assert.deepEqual(leaders.map(entry=>entry.userId),['two']);
 });

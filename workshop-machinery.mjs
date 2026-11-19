@@ -74,6 +74,16 @@ export function updatePortraitLeaders(leaders, portrait) {
   return true;
 }
 
+export function expirePortraitLeaders(leaders, activityByUser, now, maxIdleMs = 5 * 60 * 1000) {
+  const kept = leaders.filter(entry => {
+    const lastActive = activityByUser.get(String(entry.userId)) ?? entry.lastActiveAt ?? entry.completedAt;
+    return Number.isFinite(lastActive) && now - lastActive < maxIdleMs;
+  });
+  if (kept.length === leaders.length) return false;
+  leaders.splice(0, leaders.length, ...kept);
+  return true;
+}
+
 export function paintChampion(canvas, job, avatar, rank) {
   const c=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
   const first=rank===1;
