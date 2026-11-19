@@ -1,10 +1,10 @@
-import fs from 'node:fs';import assert from 'node:assert/strict';
+import fs from 'node:fs';import assert from 'node:assert/strict';import {scorePortrait} from './workshop-score.mjs';
 import vm from 'node:vm';
 const s=fs.readFileSync('index.html','utf8');
 const liveEventCode=s.slice(s.indexOf('function liveEvent('),s.indexOf('\nlet liveRoom='));
 for(const [type,sourceTag] of [['like','评论'],['like','关注'],['heart','礼物·小心心']]){
  const context={
-  Date:{now:()=>123456},lastLiveMsgAt:0,printRules:{},busy:false,
+  Date:{now:()=>123456},lastLiveMsgAt:0,printRules:{},busy:false,scorePortrait,viewerSince:{live:new Map()},
   printOptions:()=>({priority:type==='heart'}),
   demoEngine:{event:()=>({added:1,jobs:[{}]})},machineAudio:{cue(){}},
   preemptForGift(){},renderQueue(){},updateScreen(){},next(){}

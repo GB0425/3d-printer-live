@@ -5,11 +5,12 @@ test('直播入队保留普通互动顺序，礼物按价格排在已开工礼�
  const {readFileSync}=await import('node:fs');
  const {runInNewContext}=await import('node:vm');
  const {PRINT_DEFAULTS,printOptions}=await import('./print-settings.mjs');
+ const {scorePortrait}=await import('./workshop-score.mjs');
  const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
  const code=html.slice(html.indexOf('function liveEvent('),html.indexOf('\nlet liveRoom='));
  const engine=new DemoRules();
  let preemptions=0;
- const state={demoEngine:engine,printOptions,printRules:PRINT_DEFAULTS,busy:false,lastLiveMsgAt:0,
+ const state={demoEngine:engine,printOptions,scorePortrait,viewerSince:{live:new Map()},printRules:PRINT_DEFAULTS,busy:false,lastLiveMsgAt:0,
   machineAudio:{cue(){}},preemptForGift(){preemptions++},renderQueue(){},updateScreen(){},next(){}};
  runInNewContext(code,state);
  const push=(type,name,source,price=0)=>state.liveEvent(type,{name},1,null,source,true,{priorityValue:price});

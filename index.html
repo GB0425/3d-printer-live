@@ -438,7 +438,7 @@ function scoreCompletedJob(job,product){
   const stayMinutes=job.stayMinutes||0;
   const encodedGiftValue=Number(job.priorityValue)%1000;
   const giftValue=encodedGiftValue||giftLevel*3;
-  card={theme,value:scorePortrait(image,theme,giftLevel,job.score,{live:job.live,stayMinutes,giftValue})};
+  card={theme,value:job.scoreScored?job.score:scorePortrait(image,theme,giftLevel,job.score,{live:job.live,stayMinutes,giftValue})};
   if(key&&job.copy<job.total)scoreCards.set(key,card);
  }
  if(key&&job.copy===job.total)scoreCards.delete(key);
@@ -867,10 +867,15 @@ function liveEvent(type,user,amount=1,label,sourceTag,markLive=true,details={}){
  const identity=String(user.userId||'');
  const joinedAt=markLive&&identity?viewerSince.live.get(identity):null;
  const stayMinutes=joinedAt?Math.max(0,(Date.now()-joinedAt)/60000):0;
+ const score=scorePortrait(null,0,details.giftLevel||0,0,{
+  live:markLive,stayMinutes,giftValue:Number(details.priorityValue)%1000||0
+ });
  for(const job of result.jobs){
   job.live=!!markLive;
   job.userId=identity;
   job.stayMinutes=stayMinutes;
+  job.score=score;
+  job.scoreScored=!!markLive;
   job.giftLevel=details.giftLevel||0;
   job.priorityValue=details.priorityValue||0;
   if(sourceTag)job.source=sourceTag;
