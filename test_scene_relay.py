@@ -16,4 +16,9 @@ class RelayTests(unittest.TestCase):
         for _ in range(300):r.publish('main',{'type':'view-ping'})
         self.assertEqual(len(r.poll('view',0,0)['messages']),256)
         with self.assertRaises(ValueError):r.publish('bad',{'type':'execute'})
+    def test_workshop_overlay_is_relayed_to_isolated_viewer(self):
+        r=SceneRelay();r.poll('viewer')
+        state={'live':True,'gifts':3,'active':{'name':'观众甲'}}
+        r.publish('main',{'type':'view-workshop','state':state})
+        self.assertEqual(r.poll('viewer',0,0)['messages'][0]['state'],state)
 if __name__=='__main__':unittest.main()

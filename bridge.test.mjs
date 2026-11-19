@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {parseChatLine,mapGift,parseLike,diffNew,allocateLikes,normKey,pbDecode,extractUser,isJunkName,collectUsers,isAvatarUrl,_handleWSFrameForTest,_injectHubForTest,_avatarStateForTest} from './douyin-bridge.mjs';
+import {parseChatLine,mapGift,parseLike,PageRowCursor,allocateLikes,normKey,pbDecode,extractUser,isJunkName,collectUsers,isAvatarUrl,_handleWSFrameForTest,_injectHubForTest,_avatarStateForTest} from './douyin-bridge.mjs';
 
 test('评论解析',()=>{assert.deepEqual(parseChatLine('天观星系：打印了'),{kind:'comment',name:'天观星系',text:'打印了'});assert.deepEqual(parseChatLine('马达研究者：666'),{kind:'comment',name:'马达研究者',text:'666'})});
 test('礼物解析(空格形态)',()=>{const r=parseChatLine('蛋小黑 送出 大啤酒 x2');assert.equal(r.kind,'gift');assert.equal(r.name,'蛋小黑');assert.equal(r.gift,'大啤酒');assert.equal(r.count,2)});
@@ -7,8 +7,20 @@ test('礼物解析(冒号形态与默认数量)',()=>{const a=parseChatLine('蛋
 test('礼物映射四类',()=>{assert.equal(mapGift('大啤酒'),'beer');assert.equal(mapGift('小心心'),'heart');assert.equal(mapGift('红心'),'heart');assert.equal(mapGift('棒棒糖'),'lollipop');assert.equal(mapGift('嘉年华'),'other')});
 test('进场与系统消息',()=>{assert.deepEqual(parseChatLine('小小水晶球 来了'),{kind:'join',name:'小小水晶球'});assert.equal(parseChatLine('欢迎来到直播间！抖音严禁未成年人直播或礼物消费。').kind,'system');assert.equal(parseChatLine(''),null);assert.equal(parseChatLine(null),null)});
 test('点赞计数解析',()=>{assert.equal(parseLike('100本场点赞'),100);assert.equal(parseLike('8 本场点赞'),8);assert.equal(parseLike('70.1万本场点赞'),701000);assert.equal(parseLike('71.1万本场点赞'),711000);assert.equal(parseLike('人气榜100+'),null)});
-test('增量弹幕去重与顶端裁剪',()=>{const seen=new Set();assert.equal(diffNew(['天观星系：11111','马达研究者：打印'],seen).length,2);assert.equal(diffNew(['天观星系：11111','马达研究者：打印'],seen).length,0);assert.deepEqual(diffNew(['天观星系：11111','马达研究者：打印','蛋小黑：为啥没我?'],seen),['蛋小黑：为啥没我?']);assert.equal(diffNew(['马达研究者：打印','蛋小黑：为啥没我?'],seen).length,0)});
-test('同文连发不去重',()=>{const seen=new Set();assert.equal(diffNew(['天观星系：999','天观星系：999'],seen).length,2);assert.equal(diffNew(['天观星系：999','天观星系：999'],seen).length,0)});
+test('页面旧行不重放，同文新行按各自 ID 接收',()=>{
+ const c=new PageRowCursor(),row=id=>({id,text:'观众：666'});
+ assert.deepEqual(c.read('a',[row(1)]),[]);
+ assert.deepEqual(c.read('a',[row(1),row(2),row(3)]),[row(2),row(3)]);
+ assert.deepEqual(c.read('a',[row(2)]),[]);
+ assert.deepEqual(c.read('a',[row(1),row(2),row(4)]),[row(4)]);
+ assert.deepEqual(c.read('b',[row(1)]),[]);
+ const replay=row(5),fresh=row(6);
+ assert.deepEqual(c.read('b',[replay,fresh]),[fresh]);
+ assert.deepEqual(c.read('b',[replay,fresh,row(7)]),[row(7)]);
+ assert.deepEqual(c.read('empty',[]),[]);
+ assert.deepEqual(c.read('empty',[row(1)]),[row(1)]);
+
+});
 test('未知行不产生事件',()=>{assert.equal(parseChatLine('小时榜100+'),null);assert.equal(parseChatLine('原画可试看25s'),null)});
 test('昵称归一化匹配头像',()=>{assert.equal(normKey('小 明 🌸'),'小明');assert.equal(normKey('  花火 '),'花火');assert.equal(normKey('😭👍豆豆'),'豆豆')});
 test('protobuf解码：从协议消息提取昵称和头像',()=>{
@@ -41,7 +53,6 @@ test('悬停头像脚本可以编译，头像缓存供后续事件复用', async
 
 test('任意普通评论均触发，无关键词限制，包括数字表情和重复内容',()=>{
  for(const text of ['你好','123','😀','随便说点什么','打印'])assert.deepEqual(parseChatLine('小明：'+text),{kind:'comment',name:'小明',text});
- const seen=new Set();assert.equal(diffNew(['小明：😀','小明：😀'],seen).length,2);
 });
 
 test('嵌套Image.url_list与昵称同属User时可获取头像',()=>{
@@ -178,3 +189,5 @@ test('Like 协议帧：广播点赞并附带头像',()=>{
   assert.ok(ev,'应广播协议级点赞');assert.equal(ev.avatar,avatar);assert.ok(ev.count>=1);
   _injectHubForTest(null);
 });
+
+test('拼接的历史评论不是一条新弹幕',()=>assert.equal(parseChatLine('洺：666 洺：666 洺：666'),null));

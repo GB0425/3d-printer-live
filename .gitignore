@@ -33,7 +33,13 @@ popup-test-result.json
 
 .output-test/
 .capture-compat*
+.printer-instance.lock
 
 .cover-profile/
 .snd-profile/
+.workshop-test/
+.workshop-*.py
+.workshop-check.mjs
 .err-check/
+
+/models/

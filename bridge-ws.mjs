@@ -62,10 +62,10 @@ function controlFrame(opcode, payload = Buffer.alloc(0)) {
   return Buffer.concat([header, payload]);
 }
 
-export function startWSServer(port, { onMessage, onStatus, onError, identity = null, fallbackPorts = 0 } = {}) {
+export function startWSServer(port, { onConnect, onMessage, onStatus, onError, identity = null, fallbackPorts = 0, healthDetails = () => ({}) } = {}) {
   const clients = new Set();
   const server = http.createServer((req, res) => {
-    if (req.url === '/health') { res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify({service:'avatar-printer', identity, port:server.address().port})); return; }
+    if (req.url === '/health') { res.writeHead(200, {'content-type':'application/json'}); res.end(JSON.stringify({service:'avatar-printer', identity, port:server.address().port, ...healthDetails()})); return; }
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
     res.end('avatar-printer data bridge running');
   });
@@ -85,6 +85,7 @@ export function startWSServer(port, { onMessage, onStatus, onError, identity = n
     sock.setNoDelay(true);
     const client = { sock, buf: Buffer.alloc(0) };
     clients.add(client);
+    onConnect?.(client);
     sock.on('data', d => {
       client.buf = Buffer.concat([client.buf, d]);
       let frame;
@@ -106,17 +107,28 @@ export function startWSServer(port, { onMessage, onStatus, onError, identity = n
     sock.on('error', drop);
   });
   server.on('clientError', () => { });
+  function write(client, data) {
+    if (client.sock.destroyed || client.sock.writableLength > 8 * 1024 * 1024) {
+      client.sock.destroy();
+      clients.delete(client);
+      return;
+    }
+    try { client.sock.write(data) } catch { client.sock.destroy(); clients.delete(client) }
+  }
   function broadcast(obj) {
     const data = encodeText(JSON.stringify(obj));
-    for (const c of [...clients]) {
-      try { c.sock.write(data) } catch { clients.delete(c) }
-    }
+    for (const client of clients) write(client, data);
   }
   server.on('listening', () => { if (onStatus) onStatus(server.address().port) });
   server.listen(port, '127.0.0.1');
   return {
     broadcast,
+    send(client, obj) { write(client, encodeText(JSON.stringify(obj))); },
     clientCount: () => clients.size,
-    close: () => server.close()
+    close() {
+      for (const client of clients) client.sock.destroy();
+      clients.clear();
+      server.close();
+    }
   };
 }

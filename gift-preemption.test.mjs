@@ -10,6 +10,15 @@ for(const file of ['index.html','index-en.html']){
   vm.runInNewContext('function preemptForGift(){'+code+';preemptForGift();',c);return {c,product};
  }
  test(file+' immediate gift preserves unfinished ordinary job',()=>{const {c,product}=run('printing');assert.deepEqual(c.queue.map(x=>x.name),['gift','ordinary','waiting']);assert.equal(product.disposed,true);assert.equal(c.busy,false)});
- test(file+' finished product retained without duplicate job',()=>{const {c,product}=run('transfer');assert.equal(c.products[0],product);assert.equal(c.queue.length,2)});
+ test(file+' finished product retained without duplicate job',()=>{
+  const {c,product}=run('transfer');
+  if(file==='index.html'){
+   assert.equal(c.currentProduct,product);
+   assert.equal(c.phase,'transfer');
+   assert.equal(c.busy,true);
+   assert.equal(c.products.length,0);
+  }else assert.equal(c.products[0],product);
+  assert.equal(c.queue.length,2);
+ });
  test(file+' gift FIFO and manual pause respected',()=>{for(const c of [run('printing',true).c,run('printing',false,true).c]){assert.equal(c.busy,true);assert.equal(c.queue.length,2)}});
 }

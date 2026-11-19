@@ -1,0 +1,29 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {WorkshopSession,eventAmount,workshopRules} from './workshop-state.mjs';
+import {PRINT_DEFAULTS,printOptions} from './print-settings.mjs';
+
+test('demo events and completed test jobs never inflate real counters',()=>{
+  const s=new WorkshopSession();
+  s.observe({type:'gift',name:'测试',count:3},false);s.observe({type:'comment'},false);s.complete({live:false});
+  assert.deepEqual([s.snapshot(true).gifts,s.snapshot(true).comments,s.snapshot(true).completed],[0,0,0]);
+  s.observe({type:'gift',name:'观众甲',raw:'小心心',count:5});s.observe({type:'comment'});s.complete({live:true});
+  assert.deepEqual([s.snapshot(true).gifts,s.snapshot(true).comments,s.snapshot(true).completed],[5,1,1]);
+  assert.equal(s.snapshot(true).recent.gift,'小心心');assert.equal(s.snapshot(true).supporters[0].count,5);
+  s.resetDemo();assert.equal(s.snapshot(false).gifts,0);assert.equal(s.snapshot(true).gifts,5);
+});
+test('gift combo uses item count, with finite integer event quantities',()=>{
+  assert.equal(eventAmount(2.7),2);assert.equal(eventAmount(Infinity),1);assert.equal(eventAmount('3'),3);assert.equal(eventAmount(-9),1);
+  const s=new WorkshopSession();s.observe({type:'gift',name:'甲',count:3});s.observe({type:'gift',name:'乙',count:2});s.observe({type:'gift',name:'甲',count:1});
+  assert.equal(s.snapshot(true).gifts,6);assert.deepEqual(s.snapshot(true).supporters,[{name:'甲',count:4},{name:'乙',count:2}]);
+});
+test('audience rules reflect the exact editable print settings and disabled switches',()=>{
+  const settings={...PRINT_DEFAULTS,comment:true,like:false,gift:true,commentCount:3,commentSize:'large',giftSize:'small',beerCount:5};
+  const r=workshopRules(settings);assert.equal(r.lines.filter(row=>row.enabled).length,1);assert.equal(r.lines[0].detail,'3 张大头像');
+  assert.equal(r.gifts.find(row=>row.label==='大啤酒').detail,'5 张小头像');
+  for(const [type,label] of [['heart','小心心 / 爱心'],['beer','大啤酒'],['lollipop','棒棒糖']])assert.equal(r.gifts.find(row=>row.label===label).detail,`${printOptions(settings,type).count} 张小头像`);
+  assert.equal(r.gifts.find(row=>row.label==='其他礼物'),undefined);
+  assert.equal(r.gifts.find(row=>row.label==='加油鸭').detail,'2 张至尊头像');
+  assert.equal(printOptions(settings,'other').size,'huge');
+  settings.gift=false;settings.comment=false;assert.deepEqual(workshopRules(settings).gifts,[]);assert.equal(workshopRules(settings).lines.filter(row=>row.enabled).length,0);
+});

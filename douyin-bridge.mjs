@@ -9,10 +9,14 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { startWSServer } from './bridge-ws.mjs';
+import { BridgeDelivery } from './bridge-delivery.mjs';
 import zlib from 'node:zlib';
+import {decodeInteraction,ProtocolEventFilter} from './douyin-events.mjs';
+import {preferAvatar} from './avatar-quality.mjs';
+const protocolEvents=new ProtocolEventFilter();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOM_RE = /live\.douyin\.com\/(\d+)/;
+const ROOM_RE = /^https:\/\/(?:live\.douyin\.com\/|www\.douyin\.com\/follow\/live\/)([0-9]{5,25})(?=[/?#]|$)/;
 const CHROME_CANDIDATES = [
   'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
   'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
@@ -28,15 +32,19 @@ export function parseChatLine(raw) {
   let m = text.match(/^(.{1,24}?)\s*[：:]\s*(.*)$/);
   if (m) {
     const name = m[1].trim(), body = m[2].trim();
-    if (!name || isJunkName(name)) return null;
+    if (!name || isJunkName(name) || body.includes(name+'：') || body.includes(name+':')) return null;
     const g = body.match(/^(?:送出|送了|送给主播)了?\s*(.+?)(?:\s*[xX×]\s*(\d{1,3}))?$/);
     if (g && g[1].trim()) return { kind: 'gift', name, gift: g[1].trim(), count: g[2] ? +g[2] : 1 };
+    if (/^(加入了?粉丝团|加入了主播的粉丝团|成为了?粉丝团成员)/.test(body)) return {kind:'fansclub',name};
+    if (/^(分享了直播间|分享了直播|分享了主播|转发了直播)/.test(body)) return {kind:'share',name};
     if (/^(关注了主播|关注了直播间|成为新粉丝)/.test(body)) return { kind: 'follow', name };
     if (!body) return null;
     return { kind: 'comment', name, text: body };
   }
   m = text.match(/^(.{1,24}?)\s*(?:送出|送了|送给主播)了?\s*(.+?)(?:\s*[xX×]\s*(\d{1,3}))?$/);
   if (m && m[2].trim() && !isJunkName(m[1].trim())) return { kind: 'gift', name: m[1].trim(), gift: m[2].trim(), count: m[3] ? +m[3] : 1 };
+  m=text.match(/^(.{1,24}?)\s*(加入了?粉丝团|加入了主播的粉丝团|成为了?粉丝团成员)/);if(m&&!isJunkName(m[1].trim()))return {kind:'fansclub',name:m[1].trim()};
+  m=text.match(/^(.{1,24}?)\s*(分享了直播间|分享了直播|分享了主播|转发了直播|推荐了直播)/);if(m&&!isJunkName(m[1].trim()))return {kind:'share',name:m[1].trim()};
   m = text.match(/^(.{1,20}?)\s*来了$/);
   if (m) return { kind: 'join', name: m[1].trim() };
   m = text.match(/^(.{1,24}?)\s*(?:关注了主播|关注了直播间|成为新粉丝|推荐了直播)/);
@@ -45,6 +53,8 @@ export function parseChatLine(raw) {
 }
 
 export function mapGift(name) {
+  if (/爱你哟|爱你呦/.test(name)) return 'love';
+  if (/加油鸭/.test(name)) return 'duck';
   if (/啤酒/.test(name)) return 'beer';
   if (/棒棒糖/.test(name)) return 'lollipop';
   if (/爱心|红心|心心/.test(name)) return 'heart';
@@ -118,7 +128,7 @@ export function collectUsers(buf, depth = 0) {
   const fields = pbDecode(buf);
   const nickname = fields.find(f => f.n === 3 && f.wire === 2)?.buf?.toString('utf8');
   if (nickname && nickname.length <= 40 && !/[\x00-\x1f\ufffd]/.test(nickname) && !/^https?:/.test(nickname)) {
-    for (const n of [9, 10, 11, 6]) {
+    for (const n of [11, 10, 9, 6]) {
       const field = fields.find(f => f.n === n && f.wire === 2);
       const avatar = field?.buf && imageUrl(field.buf);
       if (avatar && isAvatarUrl(avatar)) { out.push({ name: nickname, avatar }); break; }
@@ -142,14 +152,14 @@ export function extractUser(buf, depth = 0) {
 function eachEnvelope(buf, cb, depth = 0) {
   if (depth > 4) return;
   for (const f of pbDecode(buf)) {
-    if (f.wire !== 2 || !f.buf || f.buf.length < 24) continue;
+    if (f.wire !== 2 || !f.buf?.length) continue;
     const sub = pbDecode(f.buf);
     const method = sub.find(s => s.n === 1 && s.wire === 2)?.buf?.toString('utf8');
     if (method && /^Webcast\w{1,30}Message$/.test(method)) {
-      const pl = sub.find(s => s.n === 2 && s.wire === 2 && s.buf && s.buf.length >= 12);
+      const pl = sub.find(s => s.n === 2 && s.wire === 2 && s.buf?.length);
       if (pl) { cb(method, pl.buf); continue; }
     }
-    if (f.buf.length > 40) eachEnvelope(f.buf, cb, depth + 1);
+    if (f.buf.length > 2) eachEnvelope(f.buf, cb, depth + 1);
   }
 }
 
@@ -157,19 +167,16 @@ function handleWSFrame(buf) {
   try {
     let payload = buf;
     const idx = buf.indexOf(Buffer.from([0x1f, 0x8b]));
-    if (idx >= 0) { try { payload = zlib.gunzipSync(buf.subarray(idx)); } catch { return } }
+    if (idx >= 0) { try { payload = zlib.gunzipSync(buf.subarray(idx)); } catch { /* Raw protobuf can contain the gzip magic bytes by coincidence. */ } }
     eachEnvelope(payload, (method, pl) => {
-      const mt = method.match(/^Webcast(Chat|Like|Member|Social|Gift|RoomUserSeq)Message$/);
+      const mt = method.match(/^Webcast(Chat|Like|Member|Social|Gift|Fansclub|RoomUserSeq)Message$/);
       if (!mt) return;
       // 消息体里每个 User 结构都自带头像，全部喂进花名册（RoomUserSeq 一次带多名活跃观众）。
       const users = collectUsers(pl);
       for (const u of users) feedAvatar(u.name, u.avatar, '协议帧');
-      const type = mt[1] === 'Like' ? 'like' : mt[1] === 'Social' ? 'follow' : mt[1] === 'Member' ? 'join' : null;
-      const actor = users[0];
-      if (!actor || !type) return;
-      if (type === 'like') emitLike(actor);
-      else if (type === 'follow') emitFollow(actor);
-      else if (type === 'join') emitJoinWS(actor);
+      const event=protocolEvents.accept(decodeInteraction(method,pl,pbDecode,users[0]));
+      if(event&&hubRef){if(!event.userId&&isJunkName(event.name))return;if(event.type==='gift'){event.gift=mapGift(event.raw);total.gift+=event.count}else if(event.type==='like'){lastWsLikeAt=Date.now();total.like+=event.count}else if(event.type==='join'){lastWsJoinAt=Date.now();total.join++}else if(event.type==='comment')total.comment++;lastEventAt=Date.now();chatSeen=true;publishInteraction(event)}
+
     });
   } catch { }
 }
@@ -209,9 +216,14 @@ function feedAvatarCache(name, avatar) {
     avatarCache.delete(name);
     avatarCache.set(name, avatar);
     cacheDirty = true;
+    while (avatarCache.size > AVATAR_CACHE_MAX) avatarCache.delete(avatarCache.keys().next().value);
   }
   const k = normKey(name);
-  if (k) { avatarCacheNorm.delete(k); avatarCacheNorm.set(k, avatar); }
+  if (k) {
+    avatarCacheNorm.delete(k);
+    avatarCacheNorm.set(k, avatar);
+    while (avatarCacheNorm.size > AVATAR_CACHE_MAX) avatarCacheNorm.delete(avatarCacheNorm.keys().next().value);
+  }
 }
 // 事件现场按昵称查历史缓存；命中就顺势灌进本房间的 avatars，后续直接走内存。
 function lookupAvatar(name) {
@@ -222,6 +234,7 @@ function lookupAvatar(name) {
 }
 function feedAvatar(name, avatar, via = '页面') {
   if (!name || !avatar || isJunkName(name)) return;
+  avatar = preferAvatar(avatars[name] || avatarCache.get(name) || '', avatar);
   const k = normKey(name);
   if (avatars[name] !== avatar) avatars[name] = avatar;
   if (k) normMap.set(k, avatar);
@@ -231,8 +244,7 @@ function feedAvatar(name, avatar, via = '页面') {
       likeState.used.clear();
       console.log('[' + stamp() + '] 🧑 首次入库 %s 的头像（%s）', name, via);
     }
-    roster.set(name, avatar);
-    lastSeen.set(name, Date.now());
+    rememberViewer(name, avatar);
   }
 }
 
@@ -249,7 +261,7 @@ function emitLike(user) {
   }
   total.like += allowed;
   lastEventAt = nowMs;
-  hubRef.broadcast({ type: 'like', name: user.name, avatar: user.avatar || '', count: allowed });
+  publishInteraction({ type: 'like', name: user.name, avatar: user.avatar || '', count: allowed });
   console.log('[' + stamp() + '] ❤️ %s 点赞 +%d（协议级）', user.name, allowed);
 }
 
@@ -257,7 +269,7 @@ function emitFollow(user) {
   if (!user || !user.name) return;
   total.join++;
   lastEventAt = Date.now();
-  hubRef.broadcast({ type: 'follow', name: user.name, avatar: user.avatar || '' });
+  publishInteraction({ type: 'follow', name: user.name, avatar: user.avatar || '' });
   console.log('[' + stamp() + '] ⭐ %s 关注了直播间 → 打印头像', user.name);
 }
 
@@ -266,7 +278,7 @@ function emitJoinWS(user) {
   lastWsJoinAt = Date.now();
   total.join++;
   lastEventAt = Date.now();
-  hubRef.broadcast({ type: 'join', name: user.name, avatar: user.avatar || '' });
+  publishInteraction({ type: 'join', name: user.name, avatar: user.avatar || '' });
   console.log('[' + stamp() + '] 👋 %s 进入直播间（协议级）', user.name);
 }
 
@@ -278,16 +290,32 @@ export function parseLike(text) {
   return Math.round(v * (m[2] ? 10000 : 1));
 }
 
-// 从弹幕行列表里找出新行：从末尾向前扫到已见签名即停；签名缓冲防重复。
-export function diffNew(lines, seen, cap = 80) {
-  const fresh = [];
-  for (let i = lines.length - 1; i >= 0 && fresh.length < cap; i--) {
-    if (seen.has(lines[i])) break;
-    fresh.unshift(lines[i]);
+// Track each rendered row, even when several rows contain the same text.
+export class PageRowCursor {
+  read(epoch, rows) {
+    if (!epoch) return [];
+    if (epoch !== this.epoch) {
+      this.epoch = epoch;
+      this.highWater = Math.max(0,...rows.map(row=>row.id));
+      this.previous = rows;
+      return [];
+    }
+    if(!rows.length)return [];
+    let preserved = 0;
+    // A rebuilt chat list may recreate every node while keeping the same history.
+    if (this.previous.length && rows.every(row=>row.id>this.highWater)) {
+      for(let size=Math.min(rows.length,this.previous.length);size>0;size--){
+        if(rows.slice(0,size).every((row,i)=>row.text===this.previous[this.previous.length-size+i].text)){
+          preserved=size;
+          break;
+        }
+      }
+    }
+    const fresh=rows.slice(preserved).filter(row=>row.id>this.highWater);
+    this.highWater=Math.max(this.highWater,...rows.map(row=>row.id));
+    this.previous=rows;
+    return fresh;
   }
-  for (const sig of fresh) seen.add(sig);
-  while (seen.size > 600) seen.delete(seen.values().next().value);
-  return fresh;
 }
 
 // 点赞无法从页面获知点赞人：在累积观众花名册上公平轮换，同一人最多连续 cap 次，
@@ -331,9 +359,9 @@ const COLLECT = String.raw`(() => {
     const t = (e.textContent || '').replace(/\s+/g, ' ').trim();
     if (t && t.length < 20 && t.indexOf('本场点赞') >= 0) { const m = t.match(/([\d.]+)(万)?\s*本场点赞/); if (m) out.likes = Math.round(parseFloat(m[1]) * (m[2] ? 10000 : 1)); break; }
   }
-  const single = t => /^.{1,24}[：:][^：:]{0,80}$/.test(t) || /^.{1,24}(送出|送了)\s*[^：:]{1,20}(\s*[xX×]\s*\d{1,3})?$/.test(t) || /^.{1,20}来了$/.test(t);
+  const single = t => /^.{1,24}[：:][^：:]{0,80}$/.test(t) || /^.{1,24}(送出|送了)\s*[^：:]{1,20}(\s*[xX×]\s*\d{1,3})?$/.test(t) || /^.{1,20}来了$/.test(t) || /^.{1,24}(关注了主播|加入了?粉丝团|加入了主播的粉丝团|分享了直播|转发了直播|推荐了直播)/.test(t);
   const tick = (window.__scanTick = (window.__scanTick || 0) + 1);
-  if (tick % 4 === 1 || !window.__chatRoot || !window.__chatRoot.isConnected) {
+  if (!window.__chatRoot?.isConnected || (tick % 16 === 1 && ![...window.__chatRoot.children].some(k=>single((k.innerText||'').replace(/\s+/g,' ').trim())))) {
     let best = null, bestN = 0;
     for (const c of document.querySelectorAll('div')) {
       let n = 0;
@@ -343,21 +371,29 @@ const COLLECT = String.raw`(() => {
     window.__chatRoot = best;
   }
   const chatRoot = window.__chatRoot;
-  const scope = chatRoot || document;
-  const leaves = [...scope.querySelectorAll('span,div')].filter(e => !e.children.length);
-  const seeds = leaves.filter(e => { const t = (e.textContent || '').replace(/\s+/g, ' ').trim(); return t && t.length <= 90 && (/[：:]/.test(t) || /(送出|送了)/.test(t) || /来了$/.test(t)); });
-  const bestSet = new Set();
-  for (const e of seeds) {
-    let best = e;
-    let n = e.parentElement;
-    while (n && n !== document.body && (!chatRoot || chatRoot.contains(n))) {
-      const t = (n.innerText || '').replace(/\s+/g, ' ').trim();
-      if (t && t.length <= 90 && single(t)) { best = n; n = n.parentElement; } else break;
-    }
-    bestSet.add(best);
+  if (!chatRoot) {
+    const pageText = (document.body?.innerText || '').slice(0,12000);
+    if (/(?:^|\n)\s*(?:直播间已关闭|直播已结束|直播间已结束|主播已下播)\s*(?:[。！!]?(?:\n|$))/.test(pageText)) out.pageState = 'closed';
+    else if (/(?:^|\n)\s*(?:安全验证|请完成验证|请先登录)\s*(?:\n|$)/.test(pageText)) out.pageState = 'verify';
   }
-  const chosen = [...bestSet].filter(a => ![...bestSet].some(b => b !== a && b.contains(a)));
-  out.lines = chosen.map(n => (n.innerText || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  // Only inspect individual children of the detected chat list. Containers
+  // outside that list can concatenate several old comments into one string.
+  const chosen = chatRoot ? [...chatRoot.children].filter(node => {
+    const text = (node.innerText || '').replace(/\s+/g, ' ').trim();
+    return text.length <= 90 && single(text);
+  }) : [];
+  const rowState = window.__printerRows ||= {nodes:new WeakMap(),seq:0,epoch:Date.now()+'-'+Math.random()};
+  out.rowEpoch = chatRoot ? rowState.epoch : null;
+  out.rows = chosen.map(node => {
+    const text = (node.innerText || '').replace(/\s+/g, ' ').trim();
+    let row = rowState.nodes.get(node);
+    if (!row || row.text !== text) {
+      row = {id:++rowState.seq,text};
+      rowState.nodes.set(node,row);
+    }
+    return row;
+  }).filter(row => row.text);
+  out.lines = out.rows.map(row => row.text);
   if (tick % 2 === 0 || !window.__avMap) {
     const av = {};
     for (const img of document.querySelectorAll('img')) {
@@ -473,22 +509,41 @@ async function launchStandaloneChrome(room) {
   throw new Error('自建浏览器启动超时');
 }
 
-function attachCDP(target) {
+function attachCDP(target, onEvent) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(target.webSocketDebuggerUrl);
     let mid = 0;
     const pend = new Map();
+    const handshakeTimer = setTimeout(() => {
+      reject(new Error('采集窗口连接超时'));
+      ws.close();
+    }, 8000);
     const rpc = (method, params = {}, sessionId) => new Promise((res, rej) => {
       const id = ++mid;
-      pend.set(id, { res, rej });
-      ws.send(JSON.stringify(sessionId ? { id, method, params, sessionId } : { id, method, params }));
+      const timer = setTimeout(() => {
+        pend.delete(id);
+        rej(new Error('采集窗口响应超时：' + method));
+      }, 4000);
+      pend.set(id, { res, rej, timer });
+      try {
+        ws.send(JSON.stringify(sessionId ? { id, method, params, sessionId } : { id, method, params }));
+      } catch (error) {
+        clearTimeout(timer);
+        pend.delete(id);
+        rej(error);
+      }
     });
     ws.onopen = async () => {
       try {
         await rpc('Runtime.enable');
         await rpc('Network.enable');
+        clearTimeout(handshakeTimer);
         resolve({ ws, rpc });
-      } catch (e) { reject(e) }
+      } catch (error) {
+        clearTimeout(handshakeTimer);
+        reject(error);
+        ws.close();
+      }
     };
     ws.onmessage = ev => {
       let m;
@@ -496,91 +551,96 @@ function attachCDP(target) {
       if (m.id && pend.has(m.id)) {
         const p = pend.get(m.id);
         pend.delete(m.id);
+        clearTimeout(p.timer);
         m.error ? p.rej(new Error(m.error.message || 'cdp error')) : p.res(m.result);
         return;
       }
-      if (m.method && cdpEventSink) { try { cdpEventSink(m) } catch { } }
+      if (m.method && onEvent) {
+        try { onEvent(m,rpc) } catch { }
+      }
     };
     ws.onerror = () => reject(new Error('CDP WebSocket 连接失败'));
+    ws.addEventListener('close', () => {
+      clearTimeout(handshakeTimer);
+      const error = new Error('采集窗口连接已关闭');
+      for (const p of pend.values()) {
+        clearTimeout(p.timer);
+        p.rej(error);
+      }
+      pend.clear();
+      reject(error);
+    });
   });
 }
 
 let currentRoom = '';
 let hubRef = null; // 模块级 hub 引用：emitLike/pollFollowers 等在 run() 外也要能广播（原先引用未定义的 hub 会抛错被吞）。
+let delivery;
+function publishInteraction(event) {
+  const message = {...event,room:currentRoom};
+  hubRef.broadcast(delivery ? delivery.record(message) : event);
+}
 let cdpRef = null;
 export function _injectCdpForTest(ref) { cdpRef = ref; }
 export function _handleWSFrameForTest(buf) { handleWSFrame(buf) }
 export function _injectHubForTest(h) { hubRef = h }
 export function _avatarStateForTest() { return { avatars: { ...avatars }, roster: [...roster.entries()], cache: [...avatarCache.entries()], normMap: [...normMap.entries()] } }
-let lastLikes = null, clientCount = 0, chatSeen = false, historySkipped = false, owner = '';
+let lastLikes = null, clientCount = 0, chatSeen = false, owner = '';
 const roster = new Map(), likeState = { idx: 0, used: new Map() }, lastSeen = new Map();
-const seen = new Set(), avatars = {};
+const avatars = Object.create(null);
+let rowCursor = new PageRowCursor();
 const total = { comment: 0, gift: 0, like: 0, join: 0 };
-let likeTokens = 20, likeTokensAt = Date.now(), lastThrottleLog = 0, lastEventAt = 0, lastNavFix = 0, lastWsLikeAt = 0, lastWsJoinAt = 0, cdpEventSink = null, lastFollowerCount = null, lastFollowerPoll = 0;
+let likeTokens = 20, likeTokensAt = Date.now(), lastThrottleLog = 0, lastEventAt = 0, lastNavFix = 0, lastWsLikeAt = 0, lastWsJoinAt = 0;
+
+function rememberViewer(name, avatar) {
+  roster.delete(name);
+  roster.set(name, avatar);
+  lastSeen.set(name, Date.now());
+  if (roster.size <= AVATAR_CACHE_MAX) return;
+  const oldest = roster.keys().next().value;
+  roster.delete(oldest);
+  lastSeen.delete(oldest);
+  likeState.used.delete(oldest);
+  delete avatars[oldest];
+  normMap.delete(normKey(oldest));
+  hoverTried.delete(oldest);
+}
 
 function resetRoomState() {
-  lastLikes = null; chatSeen = false; historySkipped = false; owner = '';
-  roster.clear(); lastSeen.clear(); seen.clear();
+  lastLikes = null; chatSeen = false; owner = '';
+  rowCursor = new PageRowCursor();
+  protocolEvents.reset();
+  lastEventAt = lastWsLikeAt = lastWsJoinAt = 0;
+  roster.clear(); lastSeen.clear();
+  normMap.clear();
   for (const k of Object.keys(avatars)) delete avatars[k];
   likeState.used.clear(); likeState.idx = 0;
   hoverTried.clear();
+  hoverPending.clear();
   total.comment = total.gift = total.like = total.join = 0;
-}
-
-// 关注检测：轮询登录账号菜单里的粉丝数，涨粉即打印头像（归属最近活跃观众）。
-async function pollFollowers() {
-  if (!cdpRef || !owner) return;
-  if (Date.now() - lastFollowerPoll < 30000) return;
-  lastFollowerPoll = Date.now();
-  try {
-    const posRaw = (await cdpRef.rpc('Runtime.evaluate', {
-      expression: `(() => {
-        const imgs = [...document.querySelectorAll('img')].filter(i => { const r = i.getBoundingClientRect(); return r.top < 130 && r.left > innerWidth * 0.55 && r.width >= 22 && r.width <= 90 && r.height >= 22 && /douyinpic/.test(i.currentSrc || i.src || ''); });
-        const el = imgs[0];
-        if (!el) return 'null';
-        const r = el.getBoundingClientRect();
-        return JSON.stringify({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) });
-      })()`,
-      returnByValue: true
-    })).result.value;
-    if (!posRaw || posRaw === 'null') return;
-    const { x, y } = JSON.parse(posRaw);
-    await cdpRef.rpc('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-    await sleep(500);
-    await cdpRef.rpc('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x + 2, y: y + 2 });
-    await sleep(700);
-    const fansRaw = (await cdpRef.rpc('Runtime.evaluate', {
-      expression: `(() => { const m = (document.body.innerText || '').match(/粉丝(\\d{3,9})/); return m ? m[1] : ''; })()`,
-      returnByValue: true
-    })).result.value;
-    await cdpRef.rpc('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 2, y: 2 }).catch(() => { });
-    const fans = fansRaw ? parseInt(fansRaw, 10) : null;
-    if (fans == null) return;
-    if (lastFollowerCount != null && fans > lastFollowerCount) {
-      const n = Math.min(fans - lastFollowerCount, 10);
-      const pool = [...roster.entries()].filter(([nm]) => nm !== owner).sort((a, b) => (lastSeen.get(b[0]) || 0) - (lastSeen.get(a[0]) || 0));
-      for (let i = 0; i < n && pool.length; i++) {
-        const [name, avatar] = pool[i % pool.length];
-        total.join++;
-        lastEventAt = Date.now();
-        hubRef.broadcast({ type: 'follow', name, avatar: avatar || '' });
-        console.log('[' + stamp() + '] ⭐ 新关注（粉丝 ' + lastFollowerCount + '→' + fans + '）→ 打印 ' + name);
-      }
-    }
-    lastFollowerCount = fans;
-  } catch { }
 }
 
 // 串行悬停，避免多条评论同时移动鼠标导致资料卡串人。
 // hoverTried 记每个昵称的批次次数与上次时间：冷却 4 秒，最多 4 批（12 次点击轮），之后交给首字兜底。
 const hoverTried = new Map();
 const HOVER_COOLDOWN_MS = 4000, HOVER_MAX_BATCHES = 4;
-let hoverQueue = Promise.resolve();
+const hoverPending = new Set();
+let hoverWorking = false;
 function hoverResolveAvatars(names) {
-  const room = currentRoom;
-  const work = hoverQueue.then(() => room === currentRoom ? resolveHoverBatch(names) : undefined);
-  hoverQueue = work.catch(() => {});
-  return work;
+  for (const name of names) {
+    const previous=hoverTried.get(name);
+    if(avatars[name]||previous?.n>=HOVER_MAX_BATCHES||Date.now()-(previous?.t||0)<HOVER_COOLDOWN_MS)continue;
+    if(hoverPending.size>=32)hoverPending.delete(hoverPending.values().next().value);
+    hoverPending.add(name);
+  }
+  if(hoverWorking||!hoverPending.size)return;
+  hoverWorking=true;
+  const batch=[...hoverPending].slice(0,2);
+  for(const name of batch)hoverPending.delete(name);
+  resolveHoverBatch(batch).catch(()=>{}).finally(()=>{
+    hoverWorking=false;
+    hoverResolveAvatars([]);
+  });
 }
 export async function clickNickname(rpc, x, y) {
   await rpc('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
@@ -745,26 +805,29 @@ async function run(hub) {
   if (!found) throw new Error('无法获得直播间页面（尝试过 :9110 :9222 :9223）');
   const { port, target } = found;
   console.log('[' + stamp() + '] 已挂接浏览器 :%d → %s', port, target.url);
-  const { ws, rpc } = await attachCDP(target);
-  cdpRef = { ws, rpc };
-  if (((target.url || '').match(ROOM_RE) || [])[1] !== currentRoom) {
-    await rpc('Page.navigate', { url: 'https://live.douyin.com/' + currentRoom }).catch(() => { });
-    await sleep(4000);
-  }
-  console.log('[' + stamp() + '] 📺 直播间 https://live.douyin.com/' + currentRoom + ' 采集中，每 0.3 秒刷新 + 协议流解码');
-  cdpEventSink = m => {
+  let capturedRoom=(target.url?.match(ROOM_RE)||[])[1];
+  const { ws, rpc } = await attachCDP(target, (m, send) => {
+    if(m.method==='Page.frameNavigated'&&!m.sessionId&&!m.params?.frame?.parentId&&m.params?.frame?.url){
+      capturedRoom=(m.params.frame.url.match(ROOM_RE)||[])[1];
+    }
     if (m.method === 'Target.attachedToTarget' && m.params && m.params.sessionId) {
       const sid = m.params.sessionId;
-      cdpRef.rpc('Network.enable', {}, sid).catch(() => { });
-      cdpRef.rpc('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, sid).catch(() => { });
-    } else if (m.method === 'Network.webSocketFrameReceived' && m.params && m.params.response && m.params.response.payloadData) {
+      send('Network.enable', {}, sid).catch(() => { });
+      send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, sid).catch(() => { });
+    } else if (capturedRoom===currentRoom && m.method === 'Network.webSocketFrameReceived' && m.params?.response?.payloadData) {
       const p = m.params.response;
       try {
         if (p.opcode === 2) handleWSFrame(Buffer.from(p.payloadData, 'base64'));
         else if (typeof p.payloadData === 'string' && p.payloadData.length > 40) handleWSFrame(Buffer.from(p.payloadData, 'utf8'));
       } catch { }
     }
-  };
+  });
+  cdpRef = { ws, rpc };
+  await rpc('Page.enable').catch(() => {});
+  if (capturedRoom!==currentRoom&&!process.env.PRINTER_CDP_PORT) {
+    await rpc('Page.navigate', { url: 'https://live.douyin.com/' + currentRoom }).catch(() => { });
+  }
+  console.log('[' + stamp() + '] 📺 直播间 https://live.douyin.com/' + currentRoom + ' 采集中，每 0.3 秒刷新 + 协议流解码');
   await cdpRef.rpc('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }).catch(() => { });
 
   // 断线重连：永久重试但每次都带 catch，绝不让 unhandled rejection 杀掉进程。
@@ -774,9 +837,16 @@ async function run(hub) {
       reconnect();
     });
   }, 3000);
+  let failed = false;
   const fail = err => {
+    if (failed) return;
+    failed = true;
     clearInterval(timer);
+    clearInterval(watch);
+    clearInterval(sweep);
     cdpRef = null;
+    chatSeen = false;
+    hub.broadcast({type:'capture-status',state:'disconnected'});
     console.log('[' + stamp() + '] 连接断开（%s），3 秒后重连…', err.message || err);
     try { ws.close() } catch { }
     reconnect();
@@ -786,14 +856,13 @@ async function run(hub) {
 
   function emit(ev) {
     lastEventAt = Date.now();
-    hub.broadcast(ev);
+    publishInteraction(ev);
     if (ev.type === 'comment') { total.comment++; console.log('[' + stamp() + '] 💬 %s：%s%s', ev.name, ev.text || '', ev.avatar ? ' 🪪' : ' △无头像') }
-    else if (ev.type === 'gift') { total.gift++; console.log('[' + stamp() + '] 🎁 %s 送出 %s x%d → %s', ev.name, ev.raw, ev.count, ev.gift) }
+    else if (ev.type === 'gift') { total.gift+=ev.count; console.log('[' + stamp() + '] 🎁 %s 送出 %s x%d → %s', ev.name, ev.raw, ev.count, ev.gift) }
     else if (ev.type === 'like') { total.like += ev.count; console.log('[' + stamp() + '] ❤️ %s 点赞 +%d%s', ev.name, ev.count, ev.avatar ? '（带头像）' : '') }
     else if (ev.type === 'join') { total.join++; console.log('[' + stamp() + '] 👋 %s 进入直播间', ev.name) }
   }
 
-  let commentResolution = Promise.resolve();
   function handle(s) {
     if (s.owner) owner = s.owner;
     for (const [n, a] of Object.entries(s.avatars || {})) {
@@ -820,72 +889,52 @@ async function run(hub) {
           lastThrottleLog = nowMs;
           console.log('[' + stamp() + '] ❤️ 点赞风暴限速中（高峰期限流，平时秒放行）');
         }
-        for (const ev of events.slice(0, allowed)) emit({ type: 'like', ...ev });
+        for (const ev of events.slice(0, allowed)) emit({ type: 'like', ...ev, attribution:'roster' });
         if (delta > 0 && !events.length && !roster.size) console.log('[' + stamp() + '] ❤️ 点赞 +%d（观众名单还没就绪，先不打印）', delta);
       }
       lastLikes = s.likes;
     }
     const parsedNames = [];
-    // 挂接前已滚过的历史弹幕只做头像同步，不打印——开局不该吐一堆旧评论，且它们的协议帧早已消失、头像注定补不齐。
-    if (!historySkipped && (s.lines || []).length) {
-      historySkipped = true;
-      let skipped = 0;
-      for (const line of s.lines) if (!seen.has(line)) { seen.add(line); skipped++; }
-      if (skipped) console.log('[' + stamp() + '] ⏭ 跳过挂接前已存在的 %d 条历史弹幕（不打印旧评论）', skipped);
-    }
-    for (const line of diffNew(s.lines || [], seen)) {
-      const ev = parseChatLine(line);
-      if (!ev) continue;
+    for (const row of rowCursor.read(s.rowEpoch,s.rows || [])) {
+      const ev = parseChatLine(row.text);
+      if (!ev || ev.kind==='system') continue;
       const key = normKey(ev.name);
       const avatar = avatars[ev.name] || (key && (normMap.get(key) || normAvatars[key])) || lookupAvatar(ev.name) || roster.get(ev.name) || '';
       if (!roster.has(ev.name)) likeState.used.clear();
-      roster.set(ev.name, avatar);
-      lastSeen.set(ev.name, Date.now());
-      if (ev.kind !== 'comment') parsedNames.push(ev.name);
-      if (ev.kind === 'comment' || ev.kind === 'gift') {
-        // Preserve every comment, including repeated text; resolve its avatar before dispatch.
-        commentResolution = commentResolution.then(async () => {
-          if (room !== currentRoom) return;
-          // 协议帧与弹幕几乎同时到达且必带头像：先短暂等待，命中就免去一次资料卡点击。
-          if (!avatars[ev.name] && !(key && normMap.get(key)) && !avatar) {
-            for (let i = 0; i < 12 && room === currentRoom; i++) {
-              await sleep(200);
-              if (avatars[ev.name] || (key && normMap.get(key))) break;
-            }
-          }
-          if (room !== currentRoom) return;
-          if (!avatars[ev.name] && !(key && normMap.get(key)) && !avatar) await hoverResolveAvatars([ev.name]);
-          if (room !== currentRoom) return;
-          const resolved = avatars[ev.name] || (key && normMap.get(key)) || avatar;
-          if (ev.kind === 'gift') emit({ type: 'gift', name: ev.name, gift: mapGift(ev.gift), raw: ev.gift, count: ev.count, avatar: resolved || '' });
-          else emit({ type: 'comment', name: ev.name, text: ev.text, avatar: resolved || '' });
-        }).catch(err => console.error('评论头像补取失败：', err.message));
-      }
-      else if (ev.kind === 'follow') emit({ type: 'follow', name: ev.name, avatar });
-      else if (ev.kind === 'join' && Date.now() - lastWsJoinAt > 30000) emit({ type: 'join', name: ev.name, avatar });
+      rememberViewer(ev.name, avatar);
+      const event = {type:ev.kind,name:ev.name,avatar,room:currentRoom,pageEventId:s.rowEpoch+':'+row.id};
+      if (ev.kind === 'comment') event.text = ev.text;
+      if (ev.kind === 'gift') Object.assign(event,{gift:mapGift(ev.gift),raw:ev.gift,count:ev.count});
+      if (protocolEvents.matchSource(event,'page')) emit(event);
+      if (!avatar) parsedNames.push(ev.name);
     }
     if (parsedNames.length) {
       const need = [...new Set(parsedNames.filter(n => !roster.get(n)))];
       if (need.length) hoverResolveAvatars(need.slice(0, 2));
     }
-    pollFollowers();
   }
 
+  let polling = false, pageState = '';
   const timer = setInterval(async () => {
-    if (ws.readyState !== 1) return;
+    if (polling || ws.readyState !== 1) return;
+    polling = true;
     try {
       const r = await rpc('Runtime.evaluate', { expression: COLLECT, returnByValue: true });
       if (r && r.result && r.result.value) {
+        if (failed) return;
         const s = r.result.value;
         // Leave login / verification pages alone; only an explicit room switch navigates.
-        if (s.href && !s.href.includes('live.douyin.com/' + currentRoom)) return;
-        if (!chatSeen && (s.lines.length || s.likes != null)) {
+        if ((s.href?.match(ROOM_RE)||[])[1] !== currentRoom) return;
+        capturedRoom=currentRoom;
+        pageState = s.pageState || '';
+        if (pageState) { chatSeen = false; return; }
+        if (!chatSeen && (s.lines?.length || s.likes != null)) {
           chatSeen = true;
           console.log('[' + stamp() + '] ✅ 已读到直播数据：弹幕 %d 条，点赞计数 %s', s.lines.length, s.likes);
         }
         handle(s);
       }
-    } catch (e) { fail(e) }
+    } catch (e) { fail(e) } finally { polling = false; }
   }, 300);
 
   const watch = setInterval(() => {
@@ -897,7 +946,7 @@ async function run(hub) {
       } else console.log('[' + stamp() + '] 打印页面断开（剩 %d 个）', n);
       clientCount = n;
     }
-    if (hub.clientCount()) hub.broadcast({ type: 'ping', room: currentRoom, ts: Date.now(), people: [...roster.entries()].sort((a, b) => Number(!!b[1]) - Number(!!a[1])).slice(0, 8).map(([name, avatar]) => ({ name, avatar })), stats: { comment: total.comment, like: total.like, gift: total.gift, join: total.join, lastAgo: lastEventAt ? Date.now() - lastEventAt : null, roster: roster.size } });
+    if (hub.clientCount()) hub.broadcast({ type: 'ping', room: currentRoom, capture: pageState || (chatSeen ? 'ready' : 'waiting'), ts: Date.now(), people: [...roster.entries()].sort((a, b) => Number(!!b[1]) - Number(!!a[1])).slice(0, 8).map(([name, avatar]) => ({ name, avatar })), stats: { comment: total.comment, like: total.like, gift: total.gift, join: total.join, lastAgo: lastEventAt ? Date.now() - lastEventAt : null, roster: roster.size } });
   }, 2000);
   watch.unref?.();
 
@@ -909,6 +958,7 @@ async function run(hub) {
     if (need.length) hoverResolveAvatars(need);
   }, 45000);
   sweep.unref?.();
+  if (ws.readyState !== 1) fail(new Error('CDP closed'));
 }
 
 // 切换房间（set-room 消息与 .bridge-room 文件变更共用）：重置状态、广播、导航新房间。
@@ -918,11 +968,12 @@ function applyRoom(room, persist) {
     return;
   }
   currentRoom = room;
+  delivery?.switchRoom();
   if (persist) { try { fs.writeFileSync(path.join(__dirname, '.bridge-room'), room) } catch { } }
   console.log('[' + stamp() + '] 📺 切换直播间 → ' + room);
   resetRoomState();
   hubRef?.broadcast({ type: 'hello', room, people: [] });
-  if (cdpRef) cdpRef.rpc('Page.navigate', { url: 'https://live.douyin.com/' + room }).catch(() => { });
+  if (cdpRef && !process.env.PRINTER_CDP_PORT) cdpRef.rpc('Page.navigate', { url: 'https://live.douyin.com/' + room }).catch(() => { });
 }
 
 async function main() {
@@ -941,15 +992,21 @@ async function main() {
     if (fileRoom && fileRoom !== currentRoom) applyRoom(fileRoom, false);
   }, 2000).unref?.();
   const wsPort = Number(process.argv[3]) || 8765;
+  delivery = new BridgeDelivery();
   const hub = startWSServer(wsPort, {
-    identity: __dirname, fallbackPorts: process.argv[3] ? 0 : 9,
+    identity: __dirname, healthDetails:()=>({pid:process.pid,attached:cdpRef?.ws.readyState===1}), fallbackPorts: process.argv[3] ? 0 : 9,
     onStatus: p => console.log('[' + stamp() + '] ✅ 数据桥服务 ws://127.0.0.1:' + p + '（等待打印页面接入）'),
     onError: err => {
       console.error('[' + stamp() + '] ❌ 端口 ' + wsPort + ' 启动失败（' + err.code + '），可能有另一个数据桥在运行，本实例退出');
       process.exit(1);
     },
-    onMessage: raw => {
+    onConnect: client => { client.startSequence = delivery.sequence },
+    onMessage: (raw, client) => {
       let m; try { m = JSON.parse(raw) } catch { return }
+      if (m?.type === 'resume-events') {
+        delivery.resume(client, m, event => hub.send(client, event));
+        return;
+      }
       if (m.type !== 'set-room') return;
       const id = String(m.room || '').match(/(\d{5,25})/);
       if (!id) return;

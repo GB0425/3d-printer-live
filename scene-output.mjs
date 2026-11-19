@@ -19,6 +19,10 @@ export class SceneOutput {
     this.supportedSamples=Array.from(gl.getInternalformatParameter(gl.RENDERBUFFER,
       this.hdr?gl.RGBA16F:gl.RGBA8, gl.SAMPLES)||[]);
     this.target=new THREE.WebGLRenderTarget(1,1,{type:this.hdr?THREE.HalfFloatType:THREE.UnsignedByteType,depthBuffer:true});
+    // Depth is used for scene visibility, but never sampled by the output pass.
+    // Avoid resolving a full 4K multisample depth texture every frame.
+    this.target.resolveDepthBuffer=false;
+    this.target.resolveStencilBuffer=false;
     this.material=new THREE.ShaderMaterial({
       uniforms:{image:{value:this.target.texture}}, depthTest:false, depthWrite:false,
       vertexShader:'varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}',
@@ -29,7 +33,10 @@ export class SceneOutput {
       }`
     });
     this.scene=new THREE.Scene();
-    this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(2,2),this.material);
+    const fullscreen=new THREE.BufferGeometry();
+    fullscreen.setAttribute('position',new THREE.Float32BufferAttribute([-1,-1,0,3,-1,0,-1,3,0],3));
+    fullscreen.setAttribute('uv',new THREE.Float32BufferAttribute([0,0,2,0,0,2],2));
+    this.mesh=new THREE.Mesh(fullscreen,this.material);
     this.mesh.frustumCulled=false;this.scene.add(this.mesh);
     this.camera=new THREE.Camera();this.scale=1;this.samples=0;
   }
@@ -48,7 +55,6 @@ export class SceneOutput {
   }
   render(scene,camera) {
     const r=this.renderer;
-    r.shadowMap.needsUpdate=true;
     r.setRenderTarget(this.target);
     try {r.render(scene,camera);} finally {r.setRenderTarget(null);}
     r.render(this.scene,this.camera);

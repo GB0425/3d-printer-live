@@ -15,7 +15,7 @@ class SceneRelay:
         if not isinstance(message, dict) or message.get('type') not in {
             'view-request','view-offer','view-answer','view-ice','view-ping',
             'view-ready','view-bye','view-size','view-stats','view-camera',
-            'view-camera-request','view-camera-change'}:
+            'view-camera-request','view-camera-change','view-workshop'}:
             raise ValueError('bad message')
         with self.condition:
             self.sequence += 1

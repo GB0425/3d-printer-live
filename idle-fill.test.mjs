@@ -1,23 +1,33 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';
+import vm from 'node:vm';
 const s=fs.readFileSync('index.html','utf8');
-assert.ok(s.includes("if(type==='comment'||type==='like'||type==='gift'||type==='follow'||type==='join')lastLiveMsgAt=Date.now()"),'真实观众消息(评论/点赞/礼物/关注/进场)应重置30秒计时');
-assert.ok(s.includes('socket.onopen=()=>{lastLiveMsgAt=Date.now();'),'连接数据桥应重置30秒计时');
+const liveEventCode=s.slice(s.indexOf('function liveEvent('),s.indexOf('\nlet liveRoom='));
+for(const [type,sourceTag] of [['like','评论'],['like','关注'],['heart','礼物·小心心']]){
+ const context={
+  Date:{now:()=>123456},lastLiveMsgAt:0,printRules:{},busy:false,
+  printOptions:()=>({priority:type==='heart'}),
+  demoEngine:{event:()=>({added:1,jobs:[{}]})},machineAudio:{cue(){}},
+  preemptForGift(){},renderQueue(){},updateScreen(){},next(){}
+ };
+ vm.runInNewContext(liveEventCode,context);
+ context.liveEvent(type,{name:'测试'},1,null,sourceTag,false);
+ assert.equal(context.lastLiveMsgAt,0);
+ context.liveEvent(type,{name:'观众'},1,null,sourceTag,true);
+ assert.equal(context.lastLiveMsgAt,123456);
+}
+assert.ok(s.match(/connection\.onopen=\(\)=>\{[\s\S]*?lastLiveMsgAt=Date\.now\(\);/),'连接数据桥应重置空闲补位计时');
 assert.ok(s.includes('setInterval(idleTestFill,1000);'),'应每秒检查一次空闲填充');
-const code=s.slice(s.indexOf('function idleTestFill(){'),s.indexOf('function next(){'));
+const code=s.slice(s.indexOf('function idleTestFill(){'),s.indexOf('function preemptForGift(){'));
 const person={name:'测试观众',avatar:'test'};const q=[];const calls=[];
 let now=1000000;const realNow=Date.now;Date.now=()=>now;
 try{
- const make=(pause,people,queueArr)=>new Function('printRules','paused','demoPeople','queue','lastLiveMsgAt','liveEvent','randomPerson',code+'return idleTestFill;')({idleFill:true,idleSeconds:30},pause,people,queueArr,1000000,(type,user,amount,label,sourceTag,markLive)=>calls.push({type,user,amount,sourceTag,markLive}),()=>person);
- const fill=make(false,[person],q);
- fill();assert.equal(calls.length,0,'30秒内不补');
- now+=29999;fill();assert.equal(calls.length,0,'差1毫秒满30秒也不补');
- now+=1;fill();assert.equal(calls.length,1,'满30秒补一张');
- assert.equal(calls[0].type,'like');assert.equal(calls[0].sourceTag,'30秒无互动·测试头像');assert.equal(calls[0].markLive,false);assert.equal(calls[0].user.name,'测试观众');
- fill();assert.equal(calls.length,1,'补完立刻重置计时');
- now+=29999;fill();assert.equal(calls.length,1,'重置后29.9秒不补');
- now+=1;fill();assert.equal(calls.length,2,'再等满30秒继续补');
- now+=30000;make(false,[person],[{name:'a'},{name:'b'}])();assert.equal(calls.length,2,'队列已有2张时不再补');
- now+=30000;make(true,[person],q)();assert.equal(calls.length,2,'暂停打印时不补');
- now+=30000;make(false,[],q)();assert.equal(calls.length,2,'测试头像池为空时不补');
- console.log('PASS: 30秒无消息自动补测试头像；补后计时重置；暂停/队列满2/空头像池均不补');
+ const context={printRules:{idleFill:true,idleSeconds:30},paused:false,demoPeople:[person],queue:q,busy:false,lastLiveMsgAt:now,Date,printAllowed:()=>true,randomPerson:()=>person,machineAudio:{cue(){}},renderQueue(){},next(){calls.push(q.at(-1))}};
+ const fill=()=>vm.runInNewContext(code+'idleTestFill();',context);
+ now+=29999;fill();assert.equal(calls.length,0);
+ now++;fill();assert.equal(calls.length,1);assert.equal(calls[0].live,false);
+ now+=60000;fill();assert.equal(calls.length,1,'已有排队任务时不补');
+ q.length=0;context.busy=true;now+=60000;fill();assert.equal(calls.length,1,'正在打印时不补');
+ context.busy=false;now+=29999;fill();assert.equal(calls.length,1);
+ now++;fill();assert.equal(calls.length,2);
+ q.length=0;context.printRules.idleFill=false;now+=60000;fill();assert.equal(calls.length,2);
 }finally{Date.now=realNow}
