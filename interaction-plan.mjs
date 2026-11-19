@@ -36,7 +36,17 @@ export class InteractionGate{
   if(event.attribution==='roster'||event.attribution==='inferred'){this.reason='没有可靠的真实操作人，不触发打印';return 0}
   if(type==='comment'){const word=String(settings.commentKeyword??'').trim();const accepted=!word||String(event.text||'').includes(word);if(!accepted)this.reason='评论不含口令“'+word+'”';return accepted?1:0}
   const key=(live?'live:':'demo:')+String(event.userId||event.name||event.nickname||'观众');
-  if(type==='like'){const threshold=Math.max(1,Number(settings.likeThreshold)||1);const total=(this.likes.get(key)||0)+Math.max(1,Math.floor(Number(event.count)||1));this.likes.set(key,total%threshold);const jobs=Math.min(100,Math.floor(total/threshold));if(!jobs)this.reason='已累计 '+total+' / '+threshold+' 赞';return jobs}
+  if(type==='like'){
+   const threshold=Math.max(1,Number(settings.likeThreshold)||1);
+   const count=Math.floor(Number(event.count));
+   const total=(this.likes.get(key)||0)+(Number.isSafeInteger(count)?Math.max(1,count):1);
+   const remainder=total%threshold;
+   if(remainder)this.likes.set(key,remainder);
+   else this.likes.delete(key);
+   const jobs=Math.floor(total/threshold);
+   if(!jobs)this.reason='已累计 '+total+' / '+threshold+' 赞';
+   return live?jobs:Math.min(100,jobs);
+  }
   return 1;
  }
 }

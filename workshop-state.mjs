@@ -1,9 +1,9 @@
 import {PRINT_DEFAULTS} from './print-settings.mjs';
 import {GIFT_KINDS,giftPlan,sizeLabel} from './interaction-plan.mjs';
 // Counts represent received events in this page session, never room-wide totals.
-export function eventAmount(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? Math.max(1, Math.min(100, Math.floor(n))) : 1;
+export function eventAmount(value, limit = Infinity) {
+  const n = Math.floor(Number(value));
+  return Number.isSafeInteger(n) ? Math.max(1, Math.min(limit, n)) : 1;
 }
 
 export class WorkshopSession {
@@ -14,7 +14,7 @@ export class WorkshopSession {
   observe(event, live = true) {
     const bucket = live ? this.live : this.demo;
     const name = String(event.name || event.nickname || '直播观众').slice(0,40);
-    const amount = eventAmount(event.count);
+    const amount = eventAmount(event.count, live ? Infinity : 100);
     if (event.type === 'comment') bucket.comments++;
     if (event.type === 'like') bucket.likes += amount;
     if (event.type === 'gift') {

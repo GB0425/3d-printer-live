@@ -578,7 +578,7 @@ let hubRef = null; // 模块级 hub 引用：emitLike/pollFollowers 等在 run()
 let delivery;
 function publishInteraction(event) {
   const message = {...event,room:currentRoom};
-  hubRef.broadcast(delivery ? delivery.record(message) : event);
+  hubRef.broadcast(delivery ? delivery.record(message) : event, client => !client.replaying);
 }
 let cdpRef = null;
 export function _injectCdpForTest(ref) { cdpRef = ref; }
@@ -1004,7 +1004,12 @@ async function main() {
     onMessage: (raw, client) => {
       let m; try { m = JSON.parse(raw) } catch { return }
       if (m?.type === 'resume-events') {
-        delivery.resume(client, m, event => hub.send(client, event));
+        delivery.replay(client, m, event => hub.send(client, event), async () => {
+          do {
+            await new Promise(resolve => setTimeout(resolve, 5));
+          } while (!client.sock.destroyed && client.sock.writableLength > 512 * 1024);
+          return !client.sock.destroyed;
+        }).catch(error => { console.warn('数据桥补发失败', error.message); client.sock.destroy() });
         return;
       }
       if (m.type !== 'set-room') return;

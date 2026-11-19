@@ -115,9 +115,9 @@ export function startWSServer(port, { onConnect, onMessage, onStatus, onError, i
     }
     try { client.sock.write(data) } catch { client.sock.destroy(); clients.delete(client) }
   }
-  function broadcast(obj) {
+  function broadcast(obj, include = () => true) {
     const data = encodeText(JSON.stringify(obj));
-    for (const client of clients) write(client, data);
+    for (const client of clients) if (include(client)) write(client, data);
   }
   server.on('listening', () => { if (onStatus) onStatus(server.address().port) });
   server.listen(port, '127.0.0.1');

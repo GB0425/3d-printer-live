@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {BridgeDelivery} from './bridge-delivery.mjs';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {startWSServer} from './bridge-ws.mjs';
 
 test('reconnect replays every missed interaction in sequence',()=>{
   const stream=new BridgeDelivery();
@@ -47,6 +48,68 @@ test('switching rooms never replays interactions from the previous room',()=>{
   stream.resume({startSequence:5},{id:stream.id,after:1},event=>messages.push(event));
   assert.equal(messages.shift().missed,0);
   assert.deepEqual(messages.map(msg=>msg.room),['new']);
+});
+
+test('paced replay catches up with a full backlog and live arrivals in order',async()=>{
+  const stream=new BridgeDelivery();
+  const client={startSequence:16000};
+  const sequences=[];
+  for(let i=0;i<16000;i++)stream.record({type:'comment',text:'666'});
+  let batches=0;
+  const headers=[];
+  await stream.replay(client,{id:stream.id,after:0},event=>{
+    assert.equal(client.replaying,true);
+    if(event.delivery)sequences.push(event.delivery.sequence);
+    else headers.push(event);
+  },async()=>{
+    if(++batches>1&&batches<=50)stream.record({type:'gift'});
+    return true;
+  });
+  assert.equal(client.replaying,false);
+  assert.equal(headers.length,1);
+  assert.equal(headers[0].missed,0);
+  assert.equal(sequences.length,16049);
+  assert.ok(sequences.every((sequence,index)=>sequence===index+1));
+});
+
+test('large recovery delivers over the actual loopback WebSocket', {timeout:15000}, async t=>{
+  const stream=new BridgeDelivery();
+  const body='x'.repeat(1024);
+  let hub;
+  const port=await new Promise(resolve=>{
+    hub=startWSServer(0,{
+      onStatus:resolve,
+      onConnect:client=>{client.startSequence=stream.sequence},
+      onMessage:(raw,client)=>stream.replay(client,JSON.parse(raw),event=>hub.send(client,event),
+        async()=>{
+          do{await new Promise(resolve=>setTimeout(resolve,1))}
+          while(!client.sock.destroyed&&client.sock.writableLength>512*1024);
+          return !client.sock.destroyed;
+        })
+    });
+  });
+  t.after(()=>hub.close());
+  const socket=new WebSocket('ws://127.0.0.1:'+port);
+  let received=0;
+  const full=12000;
+  for(let i=0;i<full;i++)stream.record({type:'comment',text:body});
+  await new Promise((resolve,reject)=>{
+    socket.addEventListener('open',()=>socket.send(JSON.stringify({id:stream.id,after:0})));
+    socket.addEventListener('error',()=>reject(new Error('Loopback socket failed')));
+    socket.addEventListener('close',()=>reject(new Error('Loopback socket closed before completion')));
+    socket.addEventListener('message',message=>{
+      try {
+        const event=JSON.parse(message.data);
+        if(event.type==='event-stream')assert.equal(event.missed,0);
+        else {
+          assert.equal(event.delivery.sequence,++received);
+          assert.equal(event.text,body);
+          if(received===full)resolve();
+        }
+      } catch(error){reject(error)}
+    });
+  });
+  assert.equal(received,full);
 });
 
 test('the printing page resumes from its last event and ignores duplicate delivery',async()=>{

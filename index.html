@@ -373,7 +373,7 @@ const championFrames=[1,2].map(rank=>{
  face.castShadow=false;
  return {rank,group,faceTexture,shown:undefined,shownAvatar:undefined};
 });
-const champions={live:[],demo:[]},viewerSince={live:new Map(),demo:new Map()};
+const champions={live:[],demo:[]},viewerSince={live:new Map()};
 let championAspect=0;
 function fitChampionFrames(){
  if(championAspect===camera.aspect&&!championLayoutDirty)return;
@@ -435,9 +435,7 @@ function scoreCompletedJob(job,product){
    }catch{}
   }
   const giftLevel=job.priority||job.giftLevel||String(job.source||'').startsWith('礼物')?Math.max(1,job.giftLevel||1):0;
-  const identity=job.userId||'';
-  const joinedAt=identity?viewerSince[job.live?'live':'demo'].get(identity):null;
-  const stayMinutes=joinedAt?Math.max(0,(Date.now()-joinedAt)/60000):0;
+  const stayMinutes=job.stayMinutes||0;
   const encodedGiftValue=Number(job.priorityValue)%1000;
   const giftValue=encodedGiftValue||giftLevel*3;
   card={theme,value:scorePortrait(image,theme,giftLevel,job.score,{live:job.live,stayMinutes,giftValue})};
@@ -832,7 +830,9 @@ function renderQueue(){
  queueRefreshPending=true;
  setTimeout(()=>{
   queueRefreshPending=false;
-  waitingPeople=new Set(queue.map(job=>String(job.userId||job.name))).size;
+  const people=new Set();
+  for(const job of queue)people.add(String(job.userId||job.name));
+  waitingPeople=people.size;
   $('waiting').textContent=queue.length;
   const visible=queue.slice(0,5),list=$('queue');
   if(visible.length===visibleQueue.length&&visible.every((job,i)=>job===visibleQueue[i])&&list.childElementCount)return;
@@ -861,7 +861,7 @@ function liveEvent(type,user,amount=1,label,sourceTag,markLive=true,details={}){
  const priority=type!=='like'&&!!options.priority;
  const protectTransactionId=busy&&(active?.priority||active?.giftLevel)?active.transactionId:null;
  const result=demoEngine.event(type,user,null,amount,{
-  ...options,priority,giftLevel:details.giftLevel||0,
+  ...options,live:markLive,priority,giftLevel:details.giftLevel||0,
   priorityValue:details.priorityValue||0,protectTransactionId
  });
  const identity=String(user.userId||'');
@@ -889,13 +889,18 @@ function updateLiveStats(){const l=$('stat-likes'),c=$('stat-comments'),g=$('sta
 function setLiveStatus(on){const el=$('live-status');if(!el)return;el.innerHTML=on?'<span style="color:#7fd69a">● 已连接数据桥 '+socket.url+'</span>':'<span style="color:#e08f8f">● 未连接 · 本地演示中</span>';const r=$('live-room');if(r)r.innerHTML=on&&liveRoom?'<a href="https://live.douyin.com/'+liveRoom+'" target="_blank" rel="noopener" style="color:#9fc3e8">打开直播间 '+liveRoom+' ↗</a>':'';const f=$('live-fetch');if(f&&!on)f.innerHTML='抓取：暂停（数据桥未连接，演示数据继续）'}
 function add(v,isLive=true){
  const type=String(v.type||'comment'),name=String(v.name||v.nickname||'直播观众').slice(0,40),avatar=typeof (v.avatar||v.avatarUrl)==='string'?(v.avatar||v.avatarUrl):'';
- if(isLive&&v.userId&&!viewerSince.live.has(String(v.userId)))viewerSince.live.set(String(v.userId),Date.now());
  workshopSession.observe({...v,type},isLive);
  if(['comment','like','gift','follow','join','fansclub','share'].includes(type)){
+  if(isLive&&v.userId){
+   const key=String(v.userId),since=viewerSince.live.get(key)??Date.now();
+   viewerSince.live.delete(key);
+   viewerSince.live.set(key,since);
+   if(viewerSince.live.size>16000)viewerSince.live.delete(viewerSince.live.keys().next().value);
+  }
   let resultReason='',added=0;
   liveRoom=liveRoom||v.room||'';
   if(type==='gift'){
-   const amount=eventAmount(v.count),plan=giftPlan(v,printRules);if(isLive)liveStats.gift+=amount;updateLiveStats();
+   const amount=eventAmount(v.count,isLive?Infinity:100),plan=giftPlan(v,printRules);if(isLive)liveStats.gift+=amount;updateLiveStats();
    if(printRules.gift&&printAllowed())added=liveEvent(plan.kind,{name,avatar,userId:v.userId},amount,plan.giftName,'礼物·'+plan.giftName,isLive,plan);
    else{resultReason=printRules.gift?'另一个窗口负责打印':'礼物打印开关已关闭';if(printRules.giftVoice&&printAllowed())giftSpeech.say(name,plan.giftName,amount);}
   }else{
@@ -999,7 +1004,7 @@ function testAvatar(i){const c=document.createElement('canvas');c.width=c.height
 let demoPeople=demoNames.map((name,i)=>({name,avatar:testAvatar(i)}));
 $('demo').textContent='再加一批测试头像';$('demo').onclick=()=>updateScreen();
 updateScreen();
-$('toggle').onclick=()=>{paused=!paused;machineAudio.cue(paused?'pause':'resume');$('toggle').textContent=paused?'继续打印':'暂停打印';if(!paused)next()};$('skip').onclick=()=>{machineAudio.cue('skip');if(currentProduct){const i=products.indexOf(currentProduct);if(i>=0)products.splice(i,1);disposeProduct(currentProduct)}currentProduct=null;transferState=null;articulateArm();active=null;busy=false;phase='idle';next()};// Explicit opt-in required by browser audio policies.
+$('toggle').onclick=()=>{paused=!paused;machineAudio.cue(paused?'pause':'resume');$('toggle').textContent=paused?'继续打印':'暂停打印';if(!paused)next()};$('skip').onclick=()=>{if(active?.transactionId&&active.copy===active.total)scoreCards.delete(active.transactionId);machineAudio.cue('skip');if(currentProduct){const i=products.indexOf(currentProduct);if(i>=0)products.splice(i,1);disposeProduct(currentProduct)}currentProduct=null;transferState=null;articulateArm();active=null;busy=false;phase='idle';next()};// Explicit opt-in required by browser audio policies.
 const soundBar=document.createElement('div');soundBar.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 20px;border-top:1px solid #303642;flex-wrap:wrap';
 const soundButton=document.createElement('button');soundButton.className='secondary';soundButton.textContent='开启声音';syncQuickIcon('🔇 打开声音');soundButton.setAttribute('aria-pressed','false');const volumeLabel=document.createElement('label');volumeLabel.textContent='音量 ';volumeLabel.style.cssText='display:flex;align-items:center;gap:10px;color:#abb5c2';const volume=document.createElement('input');volume.type='range';volume.min='0';volume.max='100';volume.value='65';volume.setAttribute('aria-label','音效音量');volume.style.width='120px';volumeLabel.append(volume);const audioStatus=document.createElement('span');audioStatus.style.cssText='font-size:12px;color:#8b98a9';audioStatus.textContent='打印 / 完成 / 输送 / 机械臂 / 互动提示';soundBar.append(soundButton,volumeLabel,audioStatus);document.querySelector('.controls').after(soundBar);
 let soundUserMuted=false,soundStarting=false;

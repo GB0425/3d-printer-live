@@ -2,6 +2,26 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {WorkshopSession,eventAmount,workshopRules} from './workshop-state.mjs';
 import {PRINT_DEFAULTS,printOptions} from './print-settings.mjs';
+import {InteractionGate} from './interaction-plan.mjs';
+import {DemoRules} from './demo-rules.mjs';
+
+test('large live gift and like batches retain their full counts and one gift transaction',()=>{
+  const session=new WorkshopSession();
+  session.observe({type:'gift',name:'甲',count:250});
+  session.observe({type:'like',name:'甲',count:3051});
+  assert.equal(session.snapshot(true).gifts,250);
+  assert.equal(session.snapshot(true).likes,3051);
+  const gate=new InteractionGate();
+  const rules={...PRINT_DEFAULTS,like:true,likeThreshold:30};
+  assert.equal(gate.accept({type:'like',userId:'1',count:3051},rules),101);
+  assert.equal(gate.accept({type:'like',userId:'1',count:9},rules),1);
+  const engine=new DemoRules();
+  engine.event('like',{name:'普通'},null);
+  const batch=engine.event('beer',{name:'甲'},null,250,{live:true});
+  assert.equal(batch.added,500);
+  assert.equal(engine.queue.at(-1).name,'普通');
+  assert.ok(batch.jobs.every((job,index)=>job.copy===index+1&&job.transactionId===batch.jobs[0].transactionId));
+});
 
 test('demo events and completed test jobs never inflate real counters',()=>{
   const s=new WorkshopSession();
