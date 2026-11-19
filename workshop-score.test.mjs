@@ -4,8 +4,17 @@ import {scorePortrait} from './workshop-score.mjs';
 
 test('each real non-gift interaction gets an independent 75–84 score',()=>{
   const samples=Array.from({length:1000},()=>scorePortrait(null,0,0,0,{live:true}));
-  assert.ok(samples.every(score=>score>=75&&score<85));
-  assert.ok(new Set(samples).size>=9);
+  assert.ok(samples.every(score=>score>=75&&score<=95));
+  assert.ok(samples.filter(score=>score<=84).length>samples.filter(score=>score>=85).length*2);
+  assert.ok(samples.some(score=>score>=85));
+  assert.ok(new Set(samples).size>=18);
+});
+
+test('non-gift scores use the common band most of the time and allow rare high scores',()=>{
+  const draws=[.1,0,.99,.999];
+  const random=()=>draws.shift();
+  assert.equal(scorePortrait(null,0,0,0,{live:true,random}),75);
+  assert.equal(scorePortrait(null,0,0,0,{live:true,random}),95);
 });
 
 test('gift score bands rise with unit price and cap at 100',()=>{
@@ -25,7 +34,7 @@ test('named gifts without a price use their configured gift level',()=>{
 });
 
 test('each trigger may be randomized while copies of one gift share its score',()=>{
-  const draws=[0,.99];
+  const draws=[.1,0,.1,.999];
   const random=()=>draws.shift();
   const first=scorePortrait(null,0,0,0,{live:true,random});
   const second=scorePortrait(null,0,0,0,{live:true,random});

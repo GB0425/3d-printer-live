@@ -3,7 +3,12 @@ export const SCORE_THEMES = ['清晰印章', '光影印章', '反差印章'];
 export function scorePortrait(image, theme, giftLevel, seed, options = {}) {
   const random = typeof options.random === 'function' ? options.random : Math.random;
   if (!options.live) return randomScore(65, 74, random);
-  if (!giftLevel) return randomScore(75, 84, random);
+  if (!giftLevel) {
+    const roll = random();
+    return roll < .8
+      ? randomScore(75, 84, random)
+      : randomScore(85, 95, random);
+  }
 
   const value = Number(options.giftValue);
   let band;
