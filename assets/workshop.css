@@ -183,7 +183,5 @@ body.scene-only .canvas{height:100vh!important;aspect-ratio:auto}body.scene-only
 .wh-portrait .wh-rules .wh-rule>span{font-size:1.85cqw!important;white-space:nowrap;overflow-wrap:normal}
 .wh-portrait .wh-rules .wh-rule b{font-size:1.7cqw!important;white-space:nowrap;max-width:none}
 
-/* Raise the print indicator above the champion frame. */
-.wh-portrait .wh-current{top:6%}
-/* Move the active print block into the clear wall space marked in the layout reference. */
-.wh-portrait .wh-current{top:40%;left:37%;right:auto;width:42%}
+/* Align the status with the right edge and keep it below the last visible rule. */
+.wh-portrait .wh-rule-stack .wh-current{position:relative;inset:auto;width:100%;margin-top:.45cqw}

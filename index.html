@@ -16,23 +16,23 @@ body.scene-only{background:#0b0e14}
 
 
 .ad-strip .wx{background:#0d1420;border:1px solid #3a4658;border-radius:6px;padding:5px 14px;color:#ffbc79;font:600 14px Consolas,'Courier New',monospace;cursor:pointer}.ad-strip .wx:hover{border-color:#ffbc79;color:#ffd9a8}.ad-strip .wx.copied{border-color:#67e8ff;color:#67e8ff}.stagehead{justify-content:flex-start;gap:14px}.stagehead small{margin-left:auto}
-</style><meta name="referrer" content="no-referrer"><link rel="stylesheet" href="assets/live-rules.css"><link rel="stylesheet" href="assets/workshop.css?v=20261120-roomhud7"></head><body><div class="ad-strip"><span class="zg">本程序由 志哥AI 免费开源出品</span><span>·</span><span><b>完全免费</b>，不收取任何费用</span><span>·</span><span>想要同款直播程序或定制开发？<b>600～1800 元</b>即可完整定制，加志哥本人微信：</span><button type="button" class="wx" data-wx="EEEyuan99" title="点击复制微信号">EEEyuan99</button><button type="button" class="wx" data-wx="19372388661" title="点击复制微信号">19372388661</button></div><script src="wx-copy.js"></script><header><div class="brand"><b>✳</b> 观众造物工坊 <span class="tag">THE LITTLE MAKER CLUB</span> <a href="./features.html" style="color:#9fc3e8;font-size:11px;text-decoration:none;margin-left:6px">功能介绍</a> <a href="./guide.html" style="color:#9fc3e8;font-size:11px;text-decoration:none;margin-left:2px">使用教程</a> <a href="./index-en.html" hreflang="en" style="color:#ffd9a8;font-size:11px;text-decoration:none;margin-left:2px" title="Switch to English version">English</a></div><div class="status"><i class="dot"></i><span id="status">演示模式</span></div></header><main><div class="top"><div><h1>直播打印台</h1><p>评论互动 · 礼物打印</p></div><div class="badge" id="mode">● 演示数据</div></div><div class="layout"><section class="panel"><div class="stagehead"><span>工坊现场 <small style="margin-left:10px">LIVE ATELIER</small></span><small>自由机位 · 可拖动检查模型</small></div><div class="canvas" id="stage"><div class="overlay"><strong>AVATAR PRINTER 01</strong>正在制作观众的专属头像<br>打印完成后自动切换下一位</div><div class="live">● LIVE PREVIEW</div><div class="result"><img id="currentImg" alt="当前头像"><div><span id="currentName">等待头像进入队列</span><strong id="score">-- <small>分</small></strong></div></div></div><div class="controls"><button id="demo">添加演示头像</button><button class="secondary" id="toggle">暂停打印</button><button class="secondary" id="skip">跳过当前</button><span class="hint">工坊评分按头像画面和当期主题计算 · 娱乐用途</span></div></section><aside class="side"><div class="panel"><div class="panelhead">直播连接 <small>LIVE CONNECTION</small></div><div class="body"><label class="label" for="url">本地数据桥 WebSocket 地址</label><input id="url" value="ws://127.0.0.1:8765" spellcheck="false"><div class="row"><button id="connect">连接数据桥</button><button class="secondary" id="disconnect">断开</button></div><p class="note">需另外运行能获取直播事件的数据桥。连接后接收头像 URL 和昵称；本页面不会直接登录抖音。</p></div></div><div class="panel"><div class="panelhead">本场数据 <small>SESSION</small></div><div class="body metrics"><div class="metric"><small>已打印</small><strong id="count">0</strong></div><div class="metric"><small>等待中</small><strong id="waiting">0</strong></div></div></div><div class="panel"><div class="panelhead">打印队列 <small>QUEUE</small></div><div class="body queue" id="queue"><div class="empty">队列空空的，等待观众加入</div></div></div></aside></div><footer>数据格式：WebSocket 文本消息 JSON，例如 {"name":"观众昵称","avatar":"https://..."}，也支持 {"nickname":"...","avatarUrl":"..."}。请使用你有权使用的直播数据接入方式。</footer></main><script type="importmap">{"imports":{"three":"./assets/three.module.js"}}</script><script type="module">
+</style><meta name="referrer" content="no-referrer"><link rel="stylesheet" href="assets/live-rules.css"><link rel="stylesheet" href="assets/workshop.css?v=20261120-roomhud8"></head><body><div class="ad-strip"><span class="zg">本程序由 志哥AI 免费开源出品</span><span>·</span><span><b>完全免费</b>，不收取任何费用</span><span>·</span><span>想要同款直播程序或定制开发？<b>600～1800 元</b>即可完整定制，加志哥本人微信：</span><button type="button" class="wx" data-wx="EEEyuan99" title="点击复制微信号">EEEyuan99</button><button type="button" class="wx" data-wx="19372388661" title="点击复制微信号">19372388661</button></div><script src="wx-copy.js"></script><header><div class="brand"><b>✳</b> 观众造物工坊 <span class="tag">THE LITTLE MAKER CLUB</span> <a href="./features.html" style="color:#9fc3e8;font-size:11px;text-decoration:none;margin-left:6px">功能介绍</a> <a href="./guide.html" style="color:#9fc3e8;font-size:11px;text-decoration:none;margin-left:2px">使用教程</a> <a href="./index-en.html" hreflang="en" style="color:#ffd9a8;font-size:11px;text-decoration:none;margin-left:2px" title="Switch to English version">English</a></div><div class="status"><i class="dot"></i><span id="status">演示模式</span></div></header><main><div class="top"><div><h1>直播打印台</h1><p>评论互动 · 礼物打印</p></div><div class="badge" id="mode">● 演示数据</div></div><div class="layout"><section class="panel"><div class="stagehead"><span>工坊现场 <small style="margin-left:10px">LIVE ATELIER</small></span><small>自由机位 · 可拖动检查模型</small></div><div class="canvas" id="stage"><div class="overlay"><strong>AVATAR PRINTER 01</strong>正在制作观众的专属头像<br>打印完成后自动切换下一位</div><div class="live">● LIVE PREVIEW</div><div class="result"><img id="currentImg" alt="当前头像"><div><span id="currentName">等待头像进入队列</span><strong id="score">-- <small>分</small></strong></div></div></div><div class="controls"><button id="demo">添加演示头像</button><button class="secondary" id="toggle">暂停打印</button><button class="secondary" id="skip">跳过当前</button><span class="hint">工坊评分按头像画面和当期主题计算 · 娱乐用途</span></div></section><aside class="side"><div class="panel"><div class="panelhead">直播连接 <small>LIVE CONNECTION</small></div><div class="body"><label class="label" for="url">本地数据桥 WebSocket 地址</label><input id="url" value="ws://127.0.0.1:8765" spellcheck="false"><div class="row"><button id="connect">连接数据桥</button><button class="secondary" id="disconnect">断开</button></div><p class="note">需另外运行能获取直播事件的数据桥。连接后接收头像 URL 和昵称；本页面不会直接登录抖音。</p></div></div><div class="panel"><div class="panelhead">本场数据 <small>SESSION</small></div><div class="body metrics"><div class="metric"><small>已打印</small><strong id="count">0</strong></div><div class="metric"><small>等待中</small><strong id="waiting">0</strong></div></div></div><div class="panel"><div class="panelhead">打印队列 <small>QUEUE</small></div><div class="body queue" id="queue"><div class="empty">队列空空的，等待观众加入</div></div></div></aside></div><footer>数据格式：WebSocket 文本消息 JSON，例如 {"name":"观众昵称","avatar":"https://..."}，也支持 {"nickname":"...","avatarUrl":"..."}。请使用你有权使用的直播数据接入方式。</footer></main><script type="importmap">{"imports":{"three":"./assets/three.module.js"}}</script><script type="module">
 const SCENE_MODE=/[?&]scene\b/.test(location.search);
 if(SCENE_MODE)document.body.classList.add('scene-only');
 import {WorkshopSession,workshopRules,eventAmount} from './workshop-state.mjs';
 import {InteractionGate,giftPlan,referenceRules} from './interaction-plan.mjs';
 import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs';
 import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=stay-score-1';
-import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-5';
+import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-6';
 import {GiftDirector} from './gift-director.mjs?v=frame-right-4';
 const interactionGate=new InteractionGate();
 import {EventAudit} from './event-audit.mjs';
 const eventAudit=new EventAudit();
-import {mountWorkshopHUD} from './workshop-hud.mjs';
+import {mountWorkshopHUD} from './workshop-hud.mjs?v=right-stack';
 const workshopSession=new WorkshopSession();
 import {SceneChannel} from './scene-channel.mjs';
 import {SceneOutput,AA_MODES} from './scene-output.mjs';
-import {FortuneSlip} from './fortune-slip.mjs';
+import {FortuneSlip} from './fortune-slip.mjs?v=belt-exit';
 const sceneChan=new SceneChannel();
 let viewPC=null,viewStream=null,lastViewSeen=0,pendingViewIce=[];
 let directOutput=false;
@@ -115,7 +115,7 @@ for(let i=0;i<3;i++){let x=5+i*.9;cyl(.38,.24,x,3.98,-5.05,black,'z');cyl(.29,.2
 function plant(x,y,z,scale=1){const g=new THREE.Group();scene.add(g);g.position.set(x,y,z);g.scale.setScalar(scale);let pot=mesh(new THREE.CylinderGeometry(.34,.25,.53,40),terra,g);pot.position.y=.265;cyl(.3,.025,0,.53,0,material('#433a2b'),'y',g);for(let i=0;i<8;i++){let a=i*2.4,h=.8+(i%3)*.18;let stem=tube([[0,.5,0],[Math.cos(a)*.12,h,Math.sin(a)*.12],[Math.cos(a)*.34,h+.12,Math.sin(a)*.34]],.016,sage,g);let leaf=mesh(new THREE.SphereGeometry(1,24,12),sage,g);leaf.scale.set(.13,.3,.045);leaf.position.set(Math.cos(a)*.34,h+.15,Math.sin(a)*.34);leaf.rotation.set(.35,a,-.5*Math.cos(a))}}
 plant(7.5,6.6,-5.2,.85);plant(-5.7,-.18,-2,1.35);
 // Reading lamp, ceramic mug, notebook and a small supply box on the desk.
-cyl(.48,.09,5.6,-.12,-1.6,black);cyl(.045,2.7,5.6,1.25,-1.6,brass);let shade=mesh(new THREE.ConeGeometry(.65,.75,48,1,true),new THREE.MeshStandardMaterial({color:'#e5cda8',roughness:.9,side:THREE.DoubleSide}));shade.position.set(5.6,2.75,-1.6);let lamp=new THREE.PointLight(0xffc282,6,8,1.7);lamp.position.set(5.6,2.48,-1.6);scene.add(lamp);const nightSpot=new THREE.SpotLight(0xffc47b,34,13,.88,.72,1.35);nightSpot.position.set(5.6,2.55,-1.6);nightSpot.target.position.set(4.7,.62,.45);scene.add(nightSpot,nightSpot.target);const nightBounce=new THREE.PointLight(0xffbf76,5.5,9,1.8);nightBounce.position.set(3.25,1.45,.55);scene.add(nightBounce);const lampGlowTex=texture(128,128,(c,w,h)=>{let g=c.createRadialGradient(w/2,h/2,1,w/2,h/2,w*.49);g.addColorStop(0,'rgba(255,235,188,.85)');g.addColorStop(.2,'rgba(255,196,112,.42)');g.addColorStop(1,'rgba(255,163,76,0)');c.fillStyle=g;c.fillRect(0,0,w,h)});const lampGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:lampGlowTex,color:0xffd18a,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));lampGlow.position.set(5.6,2.55,-1.6);lampGlow.scale.set(2.8,2.8,1);lampGlow.visible=false;scene.add(lampGlow);cyl(.19,.06,5.6,2.4,-1.6,new THREE.MeshBasicMaterial({color:0xffedc3}));
+cyl(.48,.09,5.6,-.12,-1.6,black);cyl(.045,2.08,5.6,.94,-1.6,brass);let shade=mesh(new THREE.ConeGeometry(.65,.75,48,1,true),new THREE.MeshStandardMaterial({color:'#e5cda8',roughness:.9,side:THREE.DoubleSide}));shade.position.set(5.6,2.13,-1.6);let lamp=new THREE.PointLight(0xffc282,6,8,1.7);lamp.position.set(5.6,1.86,-1.6);scene.add(lamp);const nightSpot=new THREE.SpotLight(0xffc47b,34,13,.88,.72,1.35);nightSpot.position.set(5.6,1.93,-1.6);nightSpot.target.position.set(4.7,.62,.45);scene.add(nightSpot,nightSpot.target);const nightBounce=new THREE.PointLight(0xffbf76,5.5,9,1.8);nightBounce.position.set(3.25,1.45,.55);scene.add(nightBounce);const lampGlowTex=texture(128,128,(c,w,h)=>{let g=c.createRadialGradient(w/2,h/2,1,w/2,h/2,w*.49);g.addColorStop(0,'rgba(255,235,188,.85)');g.addColorStop(.2,'rgba(255,196,112,.42)');g.addColorStop(1,'rgba(255,163,76,0)');c.fillStyle=g;c.fillRect(0,0,w,h)});const lampGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:lampGlowTex,color:0xffd18a,transparent:true,opacity:.6,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));lampGlow.position.set(5.6,1.93,-1.6);lampGlow.scale.set(2.8,2.8,1);lampGlow.visible=false;scene.add(lampGlow);cyl(.19,.06,5.6,1.78,-1.6,new THREE.MeshBasicMaterial({color:0xffedc3}));
 cyl(.27,.55,5.4,.1,.7,cream);cyl(.23,.01,5.4,.38,.7,material('#684735'));let handle=torus(.17,.045,5.72,.13,.7,cream);box(1.2,.09,.85,6.4,-.08,.8,sage);box(1.13,.05,.8,6.4,-.025,.8,cream);box(1.2,.025,.85,6.4,.015,.8,sage);let pen=cyl(.025,.9,6.3,.07,.7,brass,'x');pen.rotation.y=.25;// Linen-wrapped rigid storage box: generated fabric albedo and derived PBR microdetail.
 const storage=new THREE.Group();storage.position.set(-5.9,-.175,1.2);scene.add(storage);
 function roundedStorageBox(w,h,d,r,mat,x,y,z){const geo=new THREE.BoxGeometry(w,h,d,10,8,10),a=geo.attributes.position;const inner=new THREE.Vector3(w/2-r,h/2-r,d/2-r);for(let i=0;i<a.count;i++){let p=new THREE.Vector3().fromBufferAttribute(a,i),q=p.clone().clamp(inner.clone().negate(),inner);const offset=p.clone().sub(q).normalize().multiplyScalar(r);p.copy(q).add(offset);a.setXYZ(i,p.x,p.y,p.z)}geo.computeVertexNormals();let m=mesh(geo,mat,storage);m.position.set(x,y,z);return m}
@@ -448,12 +448,12 @@ function scoreCompletedJob(job,product){
  drawProductLabel(product.labelTex.image.getContext('2d'),2048,840,job);
  product.labelTex.needsUpdate=true;
 }
-function recordCompletedLeader(job,product){
+function recordCompletedLeader(job,product,blessing){
  const group='live';
  if(job.live&&!job.userId)return;
  const avatar=product?.avatarMat?.map?.image||null;
  const syntheticId=job.live?null:'machine:'+String(job.transactionId||job.name||Date.now());
- const record={name:job.name,userId:job.userId||syntheticId,score:job.score,avatar,lastActiveAt:Date.now()};
+ const record={name:job.name,userId:job.userId||syntheticId,score:job.score,avatar,blessing,lastActiveAt:Date.now()};
  if(!updatePortraitLeaders(champions[group],record))return;
  showChampion();
  if(!avatar){
@@ -573,6 +573,7 @@ return entry;
 }
 function disposeProduct(p){
  if(p.disposed)return;
+ fortuneSlip.release(p);
  p.disposed=true;p.g.removeFromParent();const geometries=new Set(),materials=new Set(),textures=new Set();
  p.g.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)for(const mat of Array.isArray(o.material)?o.material:[o.material]){materials.add(mat);if(mat.map&&mat.map!==wood&&mat.map!==grain)textures.add(mat.map)}});
  for(const geo of geometries)if(!geo.userData.sharedProduct)geo.dispose();for(const tex of textures)tex.dispose();for(const mat of materials)mat.dispose();
@@ -752,7 +753,7 @@ function finishPrint(){
  phase='reveal';elapsed=0;
  try{scoreCompletedJob(active,currentProduct)}catch(error){console.warn('结算画面更新失败',error)}
  currentProduct.haloReady=!!active.giftLevel||String(active.source||'').startsWith('礼物');
- const blessing=fortuneSlip.reveal(currentProduct,currentProduct.haloReady);
+ const blessing=fortuneSlip.reveal(currentProduct,currentProduct.haloReady,active.gender);
  machineAudio.cue('complete');
  if(active.copy===active.total){
   if(!active.live)giftSpeech.enqueue(active.name+'，'+active.score+'分，做好啦。',{kind:'print'});
@@ -766,7 +767,7 @@ function finishPrint(){
  currentProduct.bead.visible=false;
  currentProduct.filament.geometry.setDrawRange(0,Infinity);
  logPrint(active);
- recordCompletedLeader(active,currentProduct);
+ recordCompletedLeader(active,currentProduct,blessing);
  const pp=$('print-progress');
  if(pp)pp.textContent='当前：'+active.name+' · 出分 '+active.score+'分';
  $('score').innerHTML=active.score+' <small>分</small>';
@@ -881,6 +882,7 @@ function liveEvent(type,user,amount=1,label,sourceTag,markLive=true,details={}){
  for(const job of result.jobs){
   job.live=!!markLive;
   job.userId=identity;
+  job.gender=user.gender;
   job.stayMinutes=stayMinutes;
   job.score=score;
   job.scoreScored=!!markLive;
@@ -904,6 +906,7 @@ function add(v,isLive=true){
  const type=String(v.type||'comment'),name=String(v.name||v.nickname||'直播观众').slice(0,40),avatar=typeof (v.avatar||v.avatarUrl)==='string'?(v.avatar||v.avatarUrl):'';
  workshopSession.observe({...v,type},isLive);
  if(['comment','like','gift','follow','join','fansclub','share'].includes(type)){
+  const user={name,avatar,userId:v.userId,gender:isLive?v.gender:undefined};
   if(isLive&&v.userId){
    const key=String(v.userId),now=Date.now(),since=viewerSince.live.get(key)??now;
    viewerSince.live.delete(key);
@@ -919,12 +922,12 @@ function add(v,isLive=true){
   liveRoom=liveRoom||v.room||'';
   if(type==='gift'){
    const amount=eventAmount(v.count,isLive?Infinity:100),plan=giftPlan(v,printRules);if(isLive)liveStats.gift+=amount;updateLiveStats();
-   if(printRules.gift&&printAllowed())added=liveEvent(plan.kind,{name,avatar,userId:v.userId},amount,plan.giftName,'礼物·'+plan.giftName,isLive,plan);
+   if(printRules.gift&&printAllowed())added=liveEvent(plan.kind,user,amount,plan.giftName,'礼物·'+plan.giftName,isLive,plan);
    else{resultReason=printRules.gift?'另一个窗口负责打印':'礼物打印开关已关闭';if(printRules.giftVoice&&printAllowed())giftSpeech.say(name,plan.giftName,amount);}
   }else{
    if(isLive&&type==='like')liveStats.like+=eventAmount(v.count);if(isLive&&type==='comment')liveStats.comment++;updateLiveStats();
    const amount=interactionGate.accept({...v,type,name},printRules,isLive),label={comment:'评论',like:'点赞',follow:'关注',join:'进场',fansclub:'粉丝团',share:'分享'}[type];
-   if(amount&&printAllowed())added=liveEvent('like',{name,avatar,userId:v.userId},amount,null,label,isLive);else resultReason=amount?'另一个窗口负责打印':interactionGate.reason;
+   if(amount&&printAllowed())added=liveEvent('like',user,amount,null,label,isLive);else resultReason=amount?'另一个窗口负责打印':interactionGate.reason;
    if(isLive&&type==='join'&&printRules.joinVoice&&printAllowed())giftSpeech.welcome(name);
   }
   eventAudit.record({...v,type,name},isLive,added,resultReason);requestAuditRender();

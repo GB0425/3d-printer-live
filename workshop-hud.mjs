@@ -11,10 +11,13 @@ export function mountWorkshopHUD(host, getAspect = () => 16/9) {
   const nodes=new Map();
   const node=selector=>{if(!nodes.has(selector))nodes.set(selector,root.querySelector(selector));return nodes.get(selector)};
   const text = (selector,value) => {const el=node(selector),next=String(value);if(el.textContent!==next)el.textContent=next};
+  const current = node('.wh-current'), ruleStack = node('.wh-rule-stack');
   function layout() {
     const a=getAspect()||16/9,w=Math.min(host.clientWidth,host.clientHeight*a),h=w/a;
     Object.assign(root.style,{width:w+'px',height:h+'px',left:(host.clientWidth-w)/2+'px',top:(host.clientHeight-h)/2+'px'});
     root.classList.toggle('wh-portrait',a<1);
+    const currentHost = a<1 ? ruleStack : root;
+    if(current.parentElement!==currentHost)currentHost.append(current);
   }
   const observer=new ResizeObserver(layout);observer.observe(host);layout();
   let ruleKey='';

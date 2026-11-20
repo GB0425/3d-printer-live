@@ -12,31 +12,38 @@ export const BLESSINGS = Object.freeze([
   '无忧', '少内耗', '多欢喜', '不加班', '升职加薪'
 ]);
 
+const appearanceBlessings = new Set(['暴美', '暴白', '暴好看', '变美', '颜值飙升']);
+const generalBlessings = BLESSINGS.filter(word => !appearanceBlessings.has(word));
+
 export class FortuneSlip {
   constructor(outputScene) {
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = 480;
-    this.canvas.height = 176;
-    this.context = this.canvas.getContext('2d');
-    this.texture = new THREE.CanvasTexture(this.canvas);
-    this.texture.colorSpace = THREE.SRGBColorSpace;
-    this.texture.minFilter = THREE.LinearFilter;
-    this.texture.generateMipmaps = false;
-    this.material = new THREE.MeshBasicMaterial({
-      map: this.texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false
-    });
-    this.card = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.material);
-    this.card.frustumCulled = false;
-    this.card.renderOrder = 1;
-    this.card.visible = false;
-    outputScene.add(this.card);
+    this.outputScene = outputScene;
+    this.geometry = new THREE.PlaneGeometry(1, 1);
+    this.active = new Map();
+    this.available = [];
     this.anchor = new THREE.Vector3();
     this.edge = new THREE.Vector3();
-    this.product = null;
+    this.occupied = [];
   }
 
-  draw(word, gift) {
-    const c = this.context;
+  createCard() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 480;
+    canvas.height = 176;
+    const context = canvas.getContext('2d');
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.minFilter = THREE.LinearFilter;
+    texture.generateMipmaps = false;
+    const material = new THREE.MeshBasicMaterial({
+      map: texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false
+    });
+    const card = new THREE.Mesh(this.geometry, material);
+    card.frustumCulled = false;
+    return {card, context, texture, word: '', startedAt: 0};
+  }
+
+  draw({context: c, texture, word}, gift) {
     c.clearRect(0, 0, 480, 176);
     c.beginPath();
     c.moveTo(36, 8);
@@ -65,52 +72,80 @@ export class FortuneSlip {
     c.fillStyle = '#fff4d3';
     c.font = '900 72px "Microsoft YaHei", sans-serif';
     c.fillText(word, 240, 113, 406);
-    this.texture.needsUpdate = true;
+    texture.needsUpdate = true;
   }
 
-  reveal(product, gift) {
-    const word = BLESSINGS[Math.floor(Math.random() * BLESSINGS.length)];
-    this.product = product;
-    this.startedAt = performance.now();
-    this.draw(word, gift);
-    return word;
+  reveal(product, gift, gender) {
+    const existing = this.active.get(product);
+    if (existing) return existing.word;
+    const slip = this.available.pop() || this.createCard();
+    const words = ['female', '女'].includes(String(gender ?? '').trim().toLowerCase())
+      ? BLESSINGS : generalBlessings;
+    slip.word = words[Math.floor(Math.random() * words.length)];
+    slip.startedAt = performance.now();
+    slip.card.visible = false;
+    slip.card.renderOrder = 1;
+    this.draw(slip, gift);
+    this.active.set(product, slip);
+    this.outputScene.add(slip.card);
+    return slip.word;
+  }
+
+  release(product) {
+    const slip = this.active.get(product);
+    if (!slip) return;
+    this.active.delete(product);
+    slip.card.removeFromParent();
+    this.available.push(slip);
   }
 
   update(now, camera) {
-    const product = this.product;
-    if (!product) return;
-    const age = Math.max(0, (now - this.startedAt) / 1000);
-    if (age >= 1.85 || product.disposed) {
-      this.card.visible = false;
-      this.product = null;
-      return;
-    }
+    if (!this.active.size) return;
     camera.updateWorldMatrix(true, false);
+    this.occupied.length = 0;
+    for (const [product, slip] of this.active) this.place(product, slip, now, camera);
+  }
+
+  place(product, {card, startedAt}, now, camera) {
+    const age = Math.max(0, (now - startedAt) / 1000);
     this.anchor.set(0, 2.58, .05);
     product.g.localToWorld(this.anchor).project(camera);
     const {x, y, z} = this.anchor;
-    this.card.visible = Math.abs(x) < 1 && y > -.96 && Math.abs(z) < 1;
-    if (!this.card.visible) return;
+    card.visible = y > -.96 && Math.abs(z) < 1;
+    if (!card.visible) return;
     const pop = THREE.MathUtils.smoothstep(age, 0, .22);
     const scale = .80 + .20 * pop + .10 * Math.sin(Math.PI * pop);
-    const width = (camera.aspect < 1 ? .44 : .28) * scale;
+    const width = (camera.aspect < 1 ? .36 : .25) * scale;
     const height = width * camera.aspect * 176 / 480;
-    let cardX = THREE.MathUtils.clamp(x, -.96 + width / 2, .96 - width / 2);
+    const limitX = .96 - width / 2;
+    let cardX = THREE.MathUtils.clamp(x, -limitX, limitX);
     let cardY = y + height / 2 + .035;
     if (cardY + height / 2 > .96) {
-      // If a close-up leaves no room above the portrait, try the side with more space.
       const direction = x > 0 ? -1 : 1;
       this.edge.set(direction * .82, 2.08, .05);
       product.g.localToWorld(this.edge).project(camera);
-      cardX = this.edge.x + direction * (width / 2 + .035);
+      cardX = THREE.MathUtils.clamp(this.edge.x + direction * (width / 2 + .035), -limitX, limitX);
       cardY = Math.min(this.edge.y, .96 - height / 2);
-      if (Math.abs(cardX) + width / 2 > .96) {
-        this.card.visible = false;
-        return;
+    }
+    // Cards can converge at the edge as products leave the frame.
+    const gap = .018;
+    for (let i = 0; i < this.occupied.length;) {
+      const other = this.occupied[i];
+      const distance = (height + other.scale.y) / 2 + gap;
+      if (Math.abs(cardX - other.position.x) < (width + other.scale.x) / 2 + gap &&
+          Math.abs(cardY - other.position.y) < distance - .0001) {
+        const above = other.position.y + distance;
+        if (above + height / 2 > .96) break;
+        cardY = above;
+        i = 0;
+      } else {
+        i++;
       }
     }
-    this.card.position.set(cardX, cardY, 0);
-    this.card.scale.set(width, height, 1);
-    this.material.opacity = Math.min(age / .09, 1) * (1 - THREE.MathUtils.smoothstep(age, 1.5, 1.85));
+    card.position.set(cardX, cardY, 0);
+    card.scale.set(width, height, 1);
+    card.material.opacity = Math.min(age / .09, 1);
+    card.renderOrder = 1 + this.occupied.length;
+    this.occupied.push(card);
   }
 }

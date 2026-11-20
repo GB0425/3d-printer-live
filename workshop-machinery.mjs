@@ -119,8 +119,21 @@ export function paintChampion(canvas, job, avatar, rank) {
     return;
   }
   const chars=Array.from(job.name||'观众');
-  c.fillText(chars.length>9?chars.slice(0,8).join('')+'…':chars.join(''),w/2,608,w-82);
+  c.fillText(chars.length>9?chars.slice(0,8).join('')+'…':chars.join(''),w/2,job.blessing?597:608,w-82);
   c.fillStyle=first?'#fff0fd':'#ffe4a8';
-  c.font='bold 65px "Microsoft YaHei",sans-serif';
-  c.fillText(job.score+' 分',w/2,684);
+  c.font=`bold ${job.blessing?56:65}px "Microsoft YaHei",sans-serif`;
+  c.fillText(job.score+' 分',w/2,job.blessing?648:684);
+  if(job.blessing){
+    c.font='bold 48px "Microsoft YaHei",sans-serif';
+    const width=Math.min(w-120,c.measureText(job.blessing).width+68);
+    c.beginPath();
+    c.roundRect((w-width)/2,681,width,52,12);
+    c.fillStyle='#64272c';
+    c.fill();
+    c.lineWidth=2;
+    c.strokeStyle='#eac383';
+    c.stroke();
+    c.fillStyle='#ffefc9';
+    c.fillText(job.blessing,w/2,707,width-24);
+  }
 }
