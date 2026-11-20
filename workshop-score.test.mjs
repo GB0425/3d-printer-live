@@ -2,19 +2,20 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {scorePortrait} from './workshop-score.mjs';
 
-test('each real non-gift interaction gets an independent 75–84 score',()=>{
+test('non-gift interactions mostly score 75–84 and occasionally score 85–95',()=>{
   const samples=Array.from({length:1000},()=>scorePortrait(null,0,0,0,{live:true}));
   assert.ok(samples.every(score=>score>=75&&score<=95));
-  assert.ok(samples.filter(score=>score<=84).length>samples.filter(score=>score>=85).length*2);
+  const high=samples.filter(score=>score>=85).length;
+  assert.ok(high>20&&high<80);
   assert.ok(samples.some(score=>score>=85));
   assert.ok(new Set(samples).size>=18);
 });
 
-test('non-gift scores use the common band most of the time and allow rare high scores',()=>{
-  const draws=[.1,0,.99,.999];
+test('non-gift high score probability is five percent',()=>{
+  const draws=[.949,0,.95,0];
   const random=()=>draws.shift();
   assert.equal(scorePortrait(null,0,0,0,{live:true,random}),75);
-  assert.equal(scorePortrait(null,0,0,0,{live:true,random}),95);
+  assert.equal(scorePortrait(null,0,0,0,{live:true,random}),85);
 });
 
 test('gift score bands rise with unit price and cap at 100',()=>{

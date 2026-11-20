@@ -447,10 +447,11 @@ function scoreCompletedJob(job,product){
  product.labelTex.needsUpdate=true;
 }
 function recordCompletedLeader(job,product){
- const group=job.live?'live':'demo';
+ const group='live';
  if(job.live&&!job.userId)return;
  const avatar=product?.avatarMat?.map?.image||null;
- const record={name:job.name,userId:job.userId||('demo:'+String(job.name||'观众')),score:job.score,avatar,lastActiveAt:Date.now()};
+ const syntheticId=job.live?null:'machine:'+String(job.transactionId||job.name||Date.now());
+ const record={name:job.name,userId:job.userId||syntheticId,score:job.score,avatar,lastActiveAt:Date.now()};
  if(!updatePortraitLeaders(champions[group],record))return;
  showChampion();
  if(!avatar){

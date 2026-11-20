@@ -1,6 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs';
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
 
 test('two distinct viewers remain ranked through repeated copies and new high scores',()=>{
   const leaders=[];
@@ -23,6 +25,18 @@ test('a nickname without a stable viewer id cannot merge or promote live records
   const leaders=[];
   assert.equal(updatePortraitLeaders(leaders,{name:'同名观众',score:91}),false);
   assert.equal(leaders.length,0);
+});
+
+test('machine portraits enter the live top two using a unique synthetic identity',()=>{
+  const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
+  const start=html.indexOf('function recordCompletedLeader(');
+  const end=html.indexOf('\nfunction drawProductLabel',start);
+  const leaders={live:[],demo:[]};
+  const context={champions:leaders,updatePortraitLeaders,showChampion(){},Image:class{}};
+  runInNewContext(html.slice(start,end),context);
+  context.recordCompletedLeader({live:false,transactionId:'tx-12',name:'AI观众',score:90},{avatarMat:{map:{image:{}}}});
+  assert.deepEqual(leaders.live.map(entry=>[entry.userId,entry.score]),[['machine:tx-12',90]]);
+  assert.equal(leaders.demo.length,0);
 });
 
 test('live leaders expire after five minutes without real interaction and the next rank moves up',()=>{
