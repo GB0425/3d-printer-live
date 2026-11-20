@@ -32,6 +32,7 @@ import {mountWorkshopHUD} from './workshop-hud.mjs';
 const workshopSession=new WorkshopSession();
 import {SceneChannel} from './scene-channel.mjs';
 import {SceneOutput,AA_MODES} from './scene-output.mjs';
+import {FortuneSlip} from './fortune-slip.mjs';
 const sceneChan=new SceneChannel();
 let viewPC=null,viewStream=null,lastViewSeen=0,pendingViewIce=[];
 let directOutput=false;
@@ -88,6 +89,7 @@ const machineAudio=new PrinterAudio();
 scene.background=new THREE.Color('#d8c8b3');scene.fog=null;
 const camera=new THREE.PerspectiveCamera(36,1,.1,500);camera.position.set(5.8,8.2,18.6);const renderer=new THREE.WebGLRenderer({antialias:false,powerPreference:'high-performance'});renderer.setPixelRatio(1);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.localClippingEnabled=true;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.05;stage.prepend(renderer.domElement);
 renderer.shadowMap.autoUpdate=false;const sceneOutput=new SceneOutput(renderer);
+const fortuneSlip=new FortuneSlip(sceneOutput.scene);
 const controls=new OrbitControls(camera,renderer.domElement);controls.target.set(3.4,2.2,1.15);controls.enableDamping=true;controls.maxPolarAngle=Math.PI/2-.05;controls.minDistance=3;controls.maxDistance=180;
 scene.add(new THREE.HemisphereLight(0xffe9cf,0x4b4040,.65));const key=new THREE.DirectionalLight(0xffe9d0,2.6);key.position.set(-5,11,7);key.castShadow=true;key.shadow.mapSize.set(1024,1024);Object.assign(key.shadow.camera,{left:-10,right:10,top:10,bottom:-10});key.shadow.bias=-.00008;key.shadow.normalBias=.018;scene.add(key);const fill=new THREE.DirectionalLight(0xd9e6ff,.8);fill.position.set(6,4,2);scene.add(fill);
 const material=(color,metalness=0,roughness=.5)=>new THREE.MeshStandardMaterial({color,metalness,roughness});const black=new THREE.MeshPhysicalMaterial({color:'#424951',metalness:.92,roughness:.24,clearcoat:.45,clearcoatRoughness:.16,envMapIntensity:1.6}),rubber=material('#242623',0,.9),blue=new THREE.MeshPhysicalMaterial({color:'#365b49',metalness:.88,roughness:.2,clearcoat:.7,clearcoatRoughness:.12,envMapIntensity:1.7}),silver=material('#d9e0e4',1,.12),white=material('#f2efe1',.05,.43),brass=material('#ae8c4b',.7,.3);
@@ -542,7 +544,7 @@ let cover=mesh(coverGeometry,glassMat,g);cover.position.set(0,1.7,.018);cover.ca
 const glassEdgeMat=new THREE.MeshPhysicalMaterial({color:0xe8f4f2,metalness:0,roughness:.055,transparent:true,opacity:.24,envMapIntensity:1.6,clearcoat:1,clearcoatRoughness:.03,depthWrite:false,clippingPlanes:[plane]});
 let glassEdge=productRing(.607,.012,0,1.7,.036,glassEdgeMat,g);glassEdge.castShadow=false;glassEdge.receiveShadow=false;
 // A brief softbox reflection sweeps across the convex glass on completion.
-const glintMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{sweep:{value:-1.4},strength:{value:0}},vertexShader:`varying vec2 glassUv;void main(){glassUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,fragmentShader:`varying vec2 glassUv;uniform float sweep;uniform float strength;void main(){vec2 p=glassUv*2.0-1.0;float edge=1.0-smoothstep(.91,1.0,length(p));float d=abs(p.x+p.y*.38-sweep);float core=exp(-d*d/0.0018);float glow=exp(-d*d/0.022);float a=(core*.5+glow*.16)*edge*strength;gl_FragColor=vec4(vec3(.91,.97,1.0),a);}`});
+const glintMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,uniforms:{sweep:{value:-1.4},strength:{value:0}},vertexShader:`varying vec2 glassUv;void main(){glassUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,fragmentShader:`varying vec2 glassUv;uniform float sweep;uniform float strength;void main(){vec2 p=glassUv*2.0-1.0;float edge=1.0-smoothstep(.91,1.0,length(p));float d=abs(p.x+p.y*.38-sweep);float core=exp(-d*d/0.0018);float glow=exp(-d*d/0.022);float a=(core*.5+glow*.16)*edge*strength;gl_FragColor=vec4(vec3(1.0,.82,.42),a);}`});
 let glint=mesh(coverGeometry,glintMaterial,g);glint.position.set(0,1.7,.022);glint.castShadow=glint.receiveShadow=false;glint.visible=false;glint.renderOrder=4;
 // A small bevel under the portrait and a stepped plinth give the object weight.
 box(1.58,.055,.72,0,.726,.005,porcelain,g);box(1.7,.035,.8,0,.572,0,porcelain,g);box(.48,.14,.22,0,1.15,-.14,porcelain,g);
@@ -749,12 +751,16 @@ function advanceBeltProducts(dt){
 function finishPrint(){
  phase='reveal';elapsed=0;
  try{scoreCompletedJob(active,currentProduct)}catch(error){console.warn('结算画面更新失败',error)}
+ currentProduct.haloReady=!!active.giftLevel||String(active.source||'').startsWith('礼物');
+ const blessing=fortuneSlip.reveal(currentProduct,currentProduct.haloReady);
  machineAudio.cue('complete');
  if(active.copy===active.total){
   if(!active.live)giftSpeech.enqueue(active.name+'，'+active.score+'分，做好啦。',{kind:'print'});
-  else giftSpeech.printing(active.name,true,active.score);
+  else {
+   const name=String(active.name).replace(/[<>\n\r]/g,'').slice(0,24);
+   giftSpeech.enqueue(`${name}，${active.score}分，抽到${blessing}。`,{kind:'print'});
+  }
  }
- currentProduct.haloReady=!!active.giftLevel||String(active.source||'').startsWith('礼物');
  currentProduct.glintAge=0;
  currentProduct.plane.constant=100;
  currentProduct.bead.visible=false;
@@ -819,6 +825,7 @@ function animate(now){
  if(giftDirector.mode==='far'&&!giftDirector.transition)fitChampionFrames();
  shadowThisFrame=(busy||products.length)&&now-lastShadowRefresh>=400;
  if(shadowThisFrame){renderer.shadowMap.needsUpdate=true;lastShadowRefresh=now}
+ fortuneSlip.update(now,camera);
  sceneOutput.render(scene,camera);
  measureRender(now);
  if(viewPC)viewStream?.getVideoTracks()[0]?.requestFrame();
