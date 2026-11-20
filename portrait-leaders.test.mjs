@@ -21,15 +21,15 @@ test('two distinct viewers remain ranked through repeated copies and new high sc
   assert.deepEqual(leaders.map(x=>x.userId),['4','2']);
 });
 
-test('a nickname without a stable viewer id cannot merge or promote live records',()=>{
+test('the ranking helper requires an identity key',()=>{
   const leaders=[];
   assert.equal(updatePortraitLeaders(leaders,{name:'同名观众',score:91}),false);
   assert.equal(leaders.length,0);
 });
 
-test('machine portraits enter the live top two using a unique synthetic identity',()=>{
+test('completed machine and nickname-only portraits enter the shared top two',()=>{
   const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
-  const start=html.indexOf('function recordCompletedLeader(');
+  const start=html.indexOf('function viewerRankKey(');
   const end=html.indexOf('\nfunction drawProductLabel',start);
   const leaders={live:[],demo:[]};
   const context={champions:leaders,updatePortraitLeaders,showChampion(){},Image:class{}};
@@ -37,6 +37,12 @@ test('machine portraits enter the live top two using a unique synthetic identity
   context.recordCompletedLeader({live:false,transactionId:'tx-12',name:'AI观众',score:90},{avatarMat:{map:{image:{}}}});
   assert.deepEqual(leaders.live.map(entry=>[entry.userId,entry.score]),[['machine:tx-12',90]]);
   assert.equal(leaders.demo.length,0);
+  const product={avatarMat:{map:{image:{}}}};
+  context.recordCompletedLeader({live:true,name:'网页观众',score:92},product,'上岸');
+  assert.equal(leaders.live[0].userId,'nickname:网页观众');
+  assert.equal(leaders.live[0].blessing,'上岸');
+  context.recordCompletedLeader({live:true,userId:'123',name:'网页观众',score:93},product,'发财');
+  assert.deepEqual(leaders.live.map(entry=>entry.userId),['123','machine:tx-12']);
 });
 
 test('live leaders expire after five minutes without real interaction and the next rank moves up',()=>{

@@ -76,7 +76,8 @@ export function updatePortraitLeaders(leaders, portrait) {
 
 export function expirePortraitLeaders(leaders, activityByUser, now, maxIdleMs = 5 * 60 * 1000) {
   const kept = leaders.filter(entry => {
-    const lastActive = activityByUser.get(String(entry.userId)) ?? entry.lastActiveAt ?? entry.completedAt;
+    const lastActive = Math.max(activityByUser.get(String(entry.userId)) ?? -Infinity,
+      entry.lastActiveAt ?? entry.completedAt ?? -Infinity);
     return Number.isFinite(lastActive) && now - lastActive < maxIdleMs;
   });
   if (kept.length === leaders.length) return false;

@@ -174,8 +174,7 @@ body.scene-only .canvas{height:100vh!important;aspect-ratio:auto}body.scene-only
 .wh-portrait .wh-counters b{line-height:1}
 .wh-portrait .wh-counters div>span{line-height:1}
 /* Move the rule stack toward the lamp glow in portrait output. */
-.wh-portrait .wh-rule-stack{top:7.5%}
-.wh-portrait .wh-rule-stack{top:9%}
+.wh-portrait .wh-rule-stack{top:6.5%}
 
 /* Keep gift tiers on a single line in portrait and landscape. */
 .wh-rules .wh-rule>span{white-space:nowrap;overflow-wrap:normal}

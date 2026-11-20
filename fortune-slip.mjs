@@ -23,6 +23,9 @@ export class FortuneSlip {
     this.available = [];
     this.anchor = new THREE.Vector3();
     this.edge = new THREE.Vector3();
+    this.viewProjection = new THREE.Matrix4();
+    this.frustum = new THREE.Frustum();
+    this.portrait = new THREE.Sphere();
     this.occupied = [];
   }
 
@@ -102,30 +105,35 @@ export class FortuneSlip {
   update(now, camera) {
     if (!this.active.size) return;
     camera.updateWorldMatrix(true, false);
+    this.viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.frustum.setFromProjectionMatrix(this.viewProjection);
     this.occupied.length = 0;
     for (const [product, slip] of this.active) this.place(product, slip, now, camera);
   }
 
   place(product, {card, startedAt}, now, camera) {
+    this.portrait.center.set(0, 1.7, -.08);
+    product.g.localToWorld(this.portrait.center);
+    this.portrait.radius = .75 * (product.factor || 1);
+    card.visible = product.g.visible && this.frustum.intersectsSphere(this.portrait);
+    if (!card.visible) return;
     const age = Math.max(0, (now - startedAt) / 1000);
     this.anchor.set(0, 2.58, .05);
     product.g.localToWorld(this.anchor).project(camera);
-    const {x, y, z} = this.anchor;
-    card.visible = y > -.96 && Math.abs(z) < 1;
-    if (!card.visible) return;
+    const {x, y} = this.anchor;
     const pop = THREE.MathUtils.smoothstep(age, 0, .22);
     const scale = .80 + .20 * pop + .10 * Math.sin(Math.PI * pop);
     const width = (camera.aspect < 1 ? .36 : .25) * scale;
     const height = width * camera.aspect * 176 / 480;
     const limitX = .96 - width / 2;
     let cardX = THREE.MathUtils.clamp(x, -limitX, limitX);
-    let cardY = y + height / 2 + .035;
+    let cardY = Math.max(-.96 + height / 2, y + height / 2 + .035);
     if (cardY + height / 2 > .96) {
       const direction = x > 0 ? -1 : 1;
       this.edge.set(direction * .82, 2.08, .05);
       product.g.localToWorld(this.edge).project(camera);
       cardX = THREE.MathUtils.clamp(this.edge.x + direction * (width / 2 + .035), -limitX, limitX);
-      cardY = Math.min(this.edge.y, .96 - height / 2);
+      cardY = THREE.MathUtils.clamp(this.edge.y, -.96 + height / 2, .96 - height / 2);
     }
     // Cards can converge at the edge as products leave the frame.
     const gap = .018;
