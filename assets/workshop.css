@@ -169,12 +169,13 @@ body.scene-only .canvas{height:100vh!important;aspect-ratio:auto}body.scene-only
 .wh-current{left:3%;width:37%}
 .wh-portrait .wh-current{left:3%;width:53%}
 /* Align the completed count with the centre of the queue badge. */
-.wh-portrait .wh-counters{top:2%;height:6.5cqw;justify-content:center}
-.wh-portrait .wh-counters>div{justify-content:center;gap:0}
+.wh-portrait .wh-counters,.wh-portrait .wh-queue-count{top:4%}
+.wh-portrait .wh-counters{height:6.5cqw;justify-content:center}
+.wh-portrait .wh-counters>div{justify-content:center;gap:.85cqw}
 .wh-portrait .wh-counters b{line-height:1}
 .wh-portrait .wh-counters div>span{line-height:1}
 /* Move the rule stack toward the lamp glow in portrait output. */
-.wh-portrait .wh-rule-stack{top:6.5%}
+.wh-portrait .wh-rule-stack{top:8.2%}
 
 /* Keep gift tiers on a single line in portrait and landscape. */
 .wh-rules .wh-rule>span{white-space:nowrap;overflow-wrap:normal}
