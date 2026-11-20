@@ -21,9 +21,9 @@ const SCENE_MODE=/[?&]scene\b/.test(location.search);
 if(SCENE_MODE)document.body.classList.add('scene-only');
 import {WorkshopSession,workshopRules,eventAmount} from './workshop-state.mjs';
 import {InteractionGate,giftPlan,referenceRules} from './interaction-plan.mjs';
-import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs';
+import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs?v=complete-halo';
 import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=stay-score-1';
-import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-7';
+import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-8';
 import {GiftDirector} from './gift-director.mjs?v=frame-right-4';
 const interactionGate=new InteractionGate();
 import {EventAudit} from './event-audit.mjs';
@@ -333,13 +333,14 @@ const scoreCanvas=document.createElement('canvas');
 scoreCanvas.width=scoreCanvas.height=40;
 const scoreContext=scoreCanvas.getContext('2d',{willReadFrequently:true});
 const championTime={value:0};
+const championWidth=3.1,championHeight=3.95;
 const championFrames=[1,2].map(rank=>{
  const group=new THREE.Group();
  group.visible=false;
  scene.add(group);
- const faceTexture=texture(768,768,()=>{});
+ const faceTexture=texture(768,988,()=>{});
  faceTexture.anisotropy=renderer.capabilities.getMaxAnisotropy();
- const frame=box(3.1,3.1,.1,0,0,0,brass,group);
+ const frame=box(championWidth,championHeight,.1,0,0,0,brass,group);
  frame.castShadow=false;
  const background=new THREE.ShaderMaterial({
  uniforms:{time:championTime,rainbow:{value:rank===1}},
@@ -367,28 +368,55 @@ const championFrames=[1,2].map(rank=>{
   gl_FragColor=vec4(color,1.);
  }`
  });
- const glow=mesh(new THREE.PlaneGeometry(2.96,2.96),background,group);
+ const glow=mesh(new THREE.PlaneGeometry(championWidth-.14,championHeight-.14),background,group);
  glow.position.z=.055;
  glow.castShadow=false;
- const face=mesh(new THREE.PlaneGeometry(2.96,2.96),new THREE.MeshBasicMaterial({map:faceTexture,toneMapped:false,transparent:true,depthWrite:false}),group);
+ const face=mesh(new THREE.PlaneGeometry(championWidth-.14,championHeight-.14),new THREE.MeshBasicMaterial({map:faceTexture,toneMapped:false,transparent:true,depthWrite:false}),group);
  face.position.z=.065;
  face.castShadow=false;
  return {rank,group,faceTexture,shown:undefined,shownAvatar:undefined};
 });
 const champions={live:[]},viewerSince={live:new Map()},viewerActivity=new Map();
+const portraitCamera=camera.clone();
+function alignPortraitCamera(view,target){
+ const dz=view.position.z-target.z;
+ if(dz<=0)return;
+ const distance=Math.hypot(view.position.x-target.x,dz);
+ view.position.x=target.x;
+ view.position.z=target.z+distance;
+ view.lookAt(target);
+}
+function broadcastCamera(){
+ if(camera.aspect>=1)return camera;
+ portraitCamera.position.copy(camera.position);
+ portraitCamera.quaternion.copy(camera.quaternion);
+ portraitCamera.aspect=camera.aspect;
+ portraitCamera.projectionMatrix.copy(camera.projectionMatrix);
+ // A vertical lens shift places the conveyor lower without adding camera pitch.
+ portraitCamera.projectionMatrix.elements[9]+=.20;
+ portraitCamera.projectionMatrixInverse.copy(portraitCamera.projectionMatrix).invert();
+ alignPortraitCamera(portraitCamera,controls.target);
+ portraitCamera.updateMatrixWorld(true);
+ return portraitCamera;
+}
 let championAspect=0;
-function fitChampionFrames(){
+function fitChampionFrames(outputCamera){
  if(championAspect===camera.aspect&&!championLayoutDirty)return;
  championAspect=camera.aspect;
  championLayoutDirty=false;
  const saved=loadViews().find(view=>view.name==='镜头2'&&view.p?.length===3&&view.t?.length===3&&[...view.p,...view.t].every(Number.isFinite));
- const reference=camera.clone();
- if(saved){reference.position.fromArray(saved.p);reference.lookAt(new THREE.Vector3().fromArray(saved.t))}
+ const reference=outputCamera.clone();
+ if(saved){
+  const target=new THREE.Vector3().fromArray(saved.t);
+  reference.position.fromArray(saved.p);
+  reference.lookAt(target);
+  if(reference.aspect<1)alignPortraitCamera(reference,target);
+ }
  reference.updateMatrixWorld(true);
  const portrait=reference.aspect<1,centers=portrait?[-.66,-.17]:[-.41,-.13];
- const top=.81,z=-5.54;
+ const top=portrait?.83:.81,z=-5.54;
  const beamTop=Math.max(...[-3.25,0,3.25].map(x=>new THREE.Vector3(x,6.45,-1.25).project(reference).y));
- const bottom=Math.min(top-.07,Math.max(.31,beamTop+.04));
+ const bottom=Math.min(top-.07,Math.max(portrait?.16:.31,beamTop+.04));
  const cursor=new THREE.Vector2(),raycaster=new THREE.Raycaster(),corner=new THREE.Vector3();
  const wallPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-z);
  for(let i=0;i<championFrames.length;i++){
@@ -399,9 +427,9 @@ function fitChampionFrames(){
   group.visible=true;
   let min=0,max=2.5;
   for(let attempt=0;attempt<12;attempt++){
-   const scale=(min+max)/2,half=1.55*scale;
+   const scale=(min+max)/2,halfWidth=championWidth*scale/2,halfHeight=championHeight*scale/2;
    let fits=true;
-   for(const dx of [-half,half])for(const dy of [-half,half]){
+   for(const dx of [-halfWidth,halfWidth])for(const dy of [-halfHeight,halfHeight]){
     corner.set(group.position.x+dx,group.position.y+dy,z+.065*scale).project(reference);
     fits&&=Math.abs(corner.x-x)<=halfSpace&&corner.y>=bottom&&corner.y<=top;
    }
@@ -838,11 +866,12 @@ function animate(now){
  giftDirector.tick(Math.min((now-(giftDirector.lastFrameAt||now))/1000,.1),busy?active:null,phase,currentProduct?.factor||1);
  giftDirector.lastFrameAt=now;
  controls.update();
- if(giftDirector.mode==='far'&&!giftDirector.transition)fitChampionFrames();
+ const outputCamera=broadcastCamera();
+ if(giftDirector.mode==='far'&&!giftDirector.transition)fitChampionFrames(outputCamera);
  shadowThisFrame=(busy||products.length)&&now-lastShadowRefresh>=400;
  if(shadowThisFrame){renderer.shadowMap.needsUpdate=true;lastShadowRefresh=now}
- fortuneSlip.update(now,camera);
- sceneOutput.render(scene,camera);
+ fortuneSlip.update(now,outputCamera);
+ sceneOutput.render(scene,outputCamera);
  measureRender(now);
  if(viewPC)viewStream?.getVideoTracks()[0]?.requestFrame();
 }

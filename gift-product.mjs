@@ -22,9 +22,8 @@ export function decorateGift(THREE,group,plane,level){
   const shape=new THREE.Shape();shape.moveTo(-.34,0);shape.lineTo(-.40,.25);shape.lineTo(-.17,.12);shape.lineTo(0,.33);shape.lineTo(.17,.12);shape.lineTo(.4,.25);shape.lineTo(.34,0);shape.closePath();
   add(new THREE.ExtrudeGeometry(shape,{depth:.055,bevelEnabled:true,bevelSize:.012,bevelThickness:.012,bevelSegments:1,steps:1}),gold,0,2.34,-.07);add(new THREE.OctahedronGeometry(.065),gem,0,2.48,.005)}
  const fx=new THREE.Group();fx.position.set(0,1.7,.11);fx.renderOrder=5;fx.visible=false;group.add(fx);
- // The halo sits just outside the portrait and intentionally ignores the print-layer clipping plane.
- const labelGuardBase=new THREE.Plane(new THREE.Vector3(0,1,0),-1.28),labelGuard=labelGuardBase.clone();
- const haloMat=(color,opacity)=>new THREE.MeshBasicMaterial({color,transparent:true,opacity,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,toneMapped:false,clippingPlanes:[labelGuard]});
+ // Render the full halo behind the front nameplate and let the scene depth hide overlapping parts.
+ const haloMat=(color,opacity)=>new THREE.MeshBasicMaterial({color,transparent:true,opacity,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false});
  const power=[0,.28,.48,.72,1][Math.max(1,Math.min(4,level))];
  const outer=new THREE.Mesh(new THREE.TorusGeometry(.775,.012+.012*power,6,64),haloMat(style.metal,.5+.5*power));fx.add(outer);
  const trail=level>=2?new THREE.Mesh(new THREE.TorusGeometry(.738,.016+.018*power,6,64,2.45),haloMat(style.metal,.45+.55*power)):null;if(trail)fx.add(trail);
@@ -36,13 +35,13 @@ export function decorateGift(THREE,group,plane,level){
  const rayCount=[0,0,4,8,12][Math.max(1,Math.min(4,level))];
  for(let i=0;i<rayCount;i++){
   const ray=new THREE.Mesh(new THREE.BoxGeometry(.012+.012*power,.14+.25*power,.01),haloMat(i%3===0?0xffffff:style.metal,.25+.65*power));
-  const a=i/12*Math.PI*2;ray.position.set(Math.cos(a)*.99,Math.sin(a)*.99,0);ray.rotation.z=a-Math.PI/2;burst.add(ray)
+  const a=i/rayCount*Math.PI*2;ray.position.set(Math.cos(a)*.99,Math.sin(a)*.99,0);ray.rotation.z=a-Math.PI/2;burst.add(ray)
  }
  const positions=[];const sparkleCount=[0,0,5,10,14][Math.max(1,Math.min(4,level))];for(let i=0;i<sparkleCount;i++){const a=i/sparkleCount*Math.PI*2,r=.79+(i%3)*.025;positions.push(Math.cos(a)*r,Math.sin(a)*r,.005)}
  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
  const data=new Uint8Array(32*32*4);for(let y=0;y<32;y++)for(let x=0;x<32;x++){const dx=(x-15.5)/15.5,dy=(y-15.5)/15.5,a=Math.max(0,Math.min(1,Math.exp(-(dx*dx+dy*dy)*12)+.2*Math.exp(-Math.abs(dx)*35-Math.abs(dy)*3)+.2*Math.exp(-Math.abs(dy)*35-Math.abs(dx)*3))),at=(y*32+x)*4;data[at]=255;data[at+1]=244;data[at+2]=192;data[at+3]=Math.round(a*255)}
  const starMap=new THREE.DataTexture(data,32,32);starMap.needsUpdate=true;
- const sparkles=new THREE.Points(geometry,new THREE.PointsMaterial({map:starMap,size:.035+.08*power,transparent:true,opacity:.25+.7*power,blending:THREE.AdditiveBlending,depthWrite:false,depthTest:false,toneMapped:false}));fx.add(sparkles);
+ const sparkles=new THREE.Points(geometry,new THREE.PointsMaterial({map:starMap,size:.035+.08*power,transparent:true,opacity:.25+.7*power,blending:THREE.AdditiveBlending,depthWrite:false,toneMapped:false}));fx.add(sparkles);
  let time=0;
- return {update(dt,enabled=true){fx.visible=enabled;if(!enabled)return;group.updateWorldMatrix(true,false);labelGuard.copy(labelGuardBase).applyMatrix4(group.matrixWorld);time+=dt;const beat=(Math.sin(time*(2.2+power*2.6))+1)/2;outer.rotation.z=-time*(.12+power*.32);if(trail)trail.rotation.z=time*(.25+power*.9);if(highlight)highlight.rotation.z=-time*(.3+power*1.1)+1.25;if(inner)inner.rotation.z=time*.18;if(pulseA){pulseA.scale.setScalar(.97+beat*(.04+power*.22));pulseA.material.opacity=.12+power*(.16+beat*.6)}if(aura){aura.scale.setScalar(.98+beat*(.04+power*.18));aura.material.opacity=.04+power*(.08+beat*.42)}burst.rotation.z=-time*(.12+power*.4);burst.scale.setScalar(.98+beat*power*.08);for(const ray of burst.children)ray.material.opacity=.12+power*(.15+beat*.5);sparkles.rotation.z=-time*(.08+power*.18);sparkles.material.opacity=.2+power*(.3+.35*Math.sin(time*1.5)**2);gold.emissiveIntensity=.12+.2*power+power*.24*Math.sin(time*.8)**2;gem.emissiveIntensity=.3+power*.8*Math.sin(time*1.2)**2},get phase(){return time}};
+ return {update(dt,enabled=true){fx.visible=enabled;if(!enabled)return;time+=dt;const beat=(Math.sin(time*(2.2+power*2.6))+1)/2;outer.rotation.z=-time*(.12+power*.32);if(trail)trail.rotation.z=time*(.25+power*.9);if(highlight)highlight.rotation.z=-time*(.3+power*1.1)+1.25;if(inner)inner.rotation.z=time*.18;if(pulseA){pulseA.scale.setScalar(.97+beat*(.04+power*.22));pulseA.material.opacity=.12+power*(.16+beat*.6)}if(aura){aura.scale.setScalar(.98+beat*(.04+power*.18));aura.material.opacity=.04+power*(.08+beat*.42)}burst.rotation.z=-time*(.12+power*.4);burst.scale.setScalar(.98+beat*power*.08);for(const ray of burst.children)ray.material.opacity=.12+power*(.15+beat*.5);sparkles.rotation.z=-time*(.08+power*.18);sparkles.material.opacity=.2+power*(.3+.35*Math.sin(time*1.5)**2);gold.emissiveIntensity=.12+.2*power+power*.24*Math.sin(time*.8)**2;gem.emissiveIntensity=.3+power*.8*Math.sin(time*1.2)**2},get phase(){return time}};
 }

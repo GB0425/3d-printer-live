@@ -95,46 +95,51 @@ export function paintChampion(canvas, job, avatar, rank) {
   c.textAlign='center';
   c.textBaseline='middle';
   c.fillStyle=first?'#fff2ff':'#ffe4a8';
-  c.font='bold 64px "Microsoft YaHei",sans-serif';
-  c.fillText(first?'本场第一名':'本场第二名',w/2,94);
+  c.font='bold 70px "Microsoft YaHei",sans-serif';
+  c.fillText(first?'本场第一名':'本场第二名',w/2,h*.10);
+  const avatarY=h*.36,radius=225;
   c.fillStyle='#283d4a';
-  c.beginPath();c.arc(w/2,336,225,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(w/2,avatarY,radius,0,Math.PI*2);c.fill();
   if(avatar){
     const edge=Math.min(avatar.width,avatar.height);
     c.save();
     c.clip();
-    c.drawImage(avatar,(avatar.width-edge)/2,(avatar.height-edge)/2,edge,edge,w/2-225,111,450,450);
+    c.drawImage(avatar,(avatar.width-edge)/2,(avatar.height-edge)/2,edge,edge,w/2-radius,avatarY-radius,radius*2,radius*2);
     c.restore();
   }
   c.lineWidth=8;
   c.stroke();
-  c.fillStyle='#fff4db';
-  c.font='bold 54px "Microsoft YaHei",sans-serif';
   if(!job){
     c.fillStyle='#ffe4a8';
     c.font='bold 104px "Microsoft YaHei",sans-serif';
-    c.fillText('—',w/2,336);
+    c.fillText('—',w/2,avatarY);
     c.fillStyle='#d5e4e7';
-    c.font='bold 48px "Microsoft YaHei",sans-serif';
-    c.fillText('等待作品上榜',w/2,598);
+    c.font='bold 56px "Microsoft YaHei",sans-serif';
+    c.fillText('等待作品上榜',w/2,h*.73);
     return;
   }
+  c.fillStyle='#10202ce8';
+  c.beginPath();
+  c.roundRect(48,h*.602,w-96,h*.35,22);
+  c.fill();
   const chars=Array.from(job.name||'观众');
-  c.fillText(chars.length>9?chars.slice(0,8).join('')+'…':chars.join(''),w/2,job.blessing?597:608,w-82);
+  c.fillStyle='#fff4db';
+  c.font='bold 76px "Microsoft YaHei",sans-serif';
+  c.fillText(chars.length>7?chars.slice(0,6).join('')+'…':chars.join(''),w/2,h*.665,w-126);
   c.fillStyle=first?'#fff0fd':'#ffe4a8';
-  c.font=`bold ${job.blessing?56:65}px "Microsoft YaHei",sans-serif`;
-  c.fillText(job.score+' 分',w/2,job.blessing?648:684);
+  c.font='bold 82px "Microsoft YaHei",sans-serif';
+  c.fillText(job.score+' 分',w/2,h*.765);
   if(job.blessing){
-    c.font='bold 48px "Microsoft YaHei",sans-serif';
-    const width=Math.min(w-120,c.measureText(job.blessing).width+68);
+    c.font='bold 72px "Microsoft YaHei",sans-serif';
+    const width=Math.min(w-132,Math.max(252,c.measureText(job.blessing).width+90));
     c.beginPath();
-    c.roundRect((w-width)/2,681,width,52,12);
+    c.roundRect((w-width)/2,h*.833,width,h*.098,16);
     c.fillStyle='#64272c';
     c.fill();
-    c.lineWidth=2;
+    c.lineWidth=4;
     c.strokeStyle='#eac383';
     c.stroke();
     c.fillStyle='#ffefc9';
-    c.fillText(job.blessing,w/2,707,width-24);
+    c.fillText(job.blessing,w/2,h*.882,width-38);
   }
 }
