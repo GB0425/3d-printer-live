@@ -97,12 +97,12 @@ export function paintChampion(canvas, job, avatar, rank) {
   c.font='bold 64px "Microsoft YaHei",sans-serif';
   c.fillText(first?'本场第一名':'本场第二名',w/2,94);
   c.fillStyle='#283d4a';
-  c.beginPath();c.arc(w/2,336,205,0,Math.PI*2);c.fill();
+  c.beginPath();c.arc(w/2,336,225,0,Math.PI*2);c.fill();
   if(avatar){
     const edge=Math.min(avatar.width,avatar.height);
     c.save();
     c.clip();
-    c.drawImage(avatar,(avatar.width-edge)/2,(avatar.height-edge)/2,edge,edge,w/2-205,131,410,410);
+    c.drawImage(avatar,(avatar.width-edge)/2,(avatar.height-edge)/2,edge,edge,w/2-225,111,450,450);
     c.restore();
   }
   c.lineWidth=8;

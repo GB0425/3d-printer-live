@@ -185,3 +185,5 @@ body.scene-only .canvas{height:100vh!important;aspect-ratio:auto}body.scene-only
 
 /* Raise the print indicator above the champion frame. */
 .wh-portrait .wh-current{top:6%}
+/* Move the active print block into the clear wall space marked in the layout reference. */
+.wh-portrait .wh-current{top:40%;left:37%;right:auto;width:42%}
