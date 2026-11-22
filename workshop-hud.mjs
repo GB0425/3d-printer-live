@@ -1,5 +1,26 @@
 // Shared audience layer: main scene, direct scene and isolated OBS window.
 // All user strings are assigned through textContent, never interpolated as HTML.
+const giftIcons = new Set(['heart', 'beer', 'lollipop', 'duck', 'love']);
+
+function giftRuleLabel(row) {
+  const label = document.createElement('span');
+  label.title = row.label;
+  if (giftIcons.has(row.key)) {
+    const img = document.createElement('img');
+    img.className = 'wh-gift-icon';
+    img.alt = row.label;
+    img.addEventListener('error', () => { label.textContent = row.label; }, {once: true});
+    img.src = new URL('./assets/douyin-gifts/' + row.key + '.png', import.meta.url).href;
+    label.append(img);
+  } else if (row.key === 'price5' || row.key === 'price10') {
+    label.className = 'wh-gift-tier';
+    label.textContent = row.key === 'price5' ? '5–9 抖币' : '10+ 抖币';
+  } else {
+    label.textContent = row.label;
+  }
+  return label;
+}
+
 export function mountWorkshopHUD(host, getAspect = () => 16/9) {
   const root = document.createElement('div'); root.className = 'workshop-hud';
   root.innerHTML = `<div class="wh-counters"><div><b data-wh="completed">0</b><span>已完成作品</span></div></div>
@@ -37,9 +58,34 @@ export function mountWorkshopHUD(host, getAspect = () => 16/9) {
     root.querySelector('.wh-current').classList.toggle('wh-premium',!!job?.priority);
     if(ruleKey!==JSON.stringify(s.rules)) {
       ruleKey=JSON.stringify(s.rules); const r=s.rules||{lines:[],gifts:[]};
-      const rows=(selector,entries,icon)=>{const box=root.querySelector(selector);box.replaceChildren();for(const row of entries){if(row.enabled===false)continue;const el=document.createElement('div');el.className='wh-rule';if(row.enabled===false)el.classList.add('wh-disabled');const mark=document.createElement('i');mark.textContent=row.icon||icon;const label=document.createElement('span');label.textContent=row.label;const detail=document.createElement('b');detail.textContent=row.detail;el.append(mark,label,detail);box.append(el)}if(!box.children.length){const p=document.createElement('p');p.textContent='当前未开启打印触发';box.append(p)}};
+      const rows=(selector,entries,icon)=>{
+        const box=node(selector);
+        box.replaceChildren();
+        for(const row of entries){
+          if(row.enabled===false)continue;
+          const el=document.createElement('div');
+          el.className='wh-rule';
+          const detail=document.createElement('b');
+          detail.textContent=row.detail;
+          if(selector==='.wh-gift-rules'){
+            el.append(giftRuleLabel(row),detail);
+          }else{
+            const mark=document.createElement('i');
+            mark.textContent=row.icon||icon;
+            const label=document.createElement('span');
+            label.textContent=row.label;
+            el.append(mark,label,detail);
+          }
+          box.append(el);
+        }
+        if(!box.children.length){
+          const p=document.createElement('p');
+          p.textContent='当前未开启打印触发';
+          box.append(p);
+        }
+      };
       rows('.wh-interactions',r.lines,'↗');
-      rows('.wh-gift-rules',r.gifts,'✦');
+      rows('.wh-gift-rules',r.gifts);
     }
   }
   return {root,render,destroy(){observer.disconnect();root.remove()}};
