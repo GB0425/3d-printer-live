@@ -10,9 +10,9 @@ for(const [type,sourceTag] of [['like','评论'],['like','关注'],['heart','礼
   preemptForGift(){},renderQueue(){},updateScreen(){},next(){}
  };
  vm.runInNewContext(liveEventCode,context);
- context.liveEvent(type,{name:'测试'},1,null,sourceTag,false);
+ context.liveEvent(type,{name:'测试'},1,sourceTag,false);
  assert.equal(context.lastLiveMsgAt,0);
- context.liveEvent(type,{name:'观众'},1,null,sourceTag,true);
+ context.liveEvent(type,{name:'观众'},1,sourceTag,true);
  assert.equal(context.lastLiveMsgAt,123456);
 }
 assert.ok(s.match(/connection\.onopen=\(\)=>\{[\s\S]*?lastLiveMsgAt=Date\.now\(\);/),'连接数据桥应重置空闲补位计时');

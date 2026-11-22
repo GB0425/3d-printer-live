@@ -16,3 +16,12 @@ const names = new Map(Object.entries(NAMED_GIFTS).flatMap(([key,gift])=>
 export function namedGiftKey(name) {
   return names.get(String(name ?? '').trim());
 }
+
+const giftIds = new Map([
+  ['2001','heart'],['3992','popularity'],['855','popularity'],['463','rose'],
+  ['2002','beer'],['3481','nice'],['165','lollipop'],['2006','flower'],['3597','duck']
+]);
+
+export function namedGiftLabelForId(id) {
+  return NAMED_GIFTS[giftIds.get(String(id))]?.label;
+}

@@ -27,6 +27,16 @@ test('the ranking helper requires an identity key',()=>{
   assert.equal(leaders.length,0);
 });
 
+test('a completed gift earns a seat even behind two higher gifts, without duplicating viewers',()=>{
+  const leaders=[{userId:'a',score:100,gift:true},{userId:'b',score:99,gift:true}];
+  assert.equal(updatePortraitLeaders(leaders,{userId:'c',score:96,gift:true}),true);
+  assert.deepEqual(leaders.map(entry=>entry.userId),['a','c']);
+  assert.equal(updatePortraitLeaders(leaders,{userId:'c',score:96,gift:true}),false);
+  assert.equal(updatePortraitLeaders(leaders,{userId:'d',score:95,gift:false}),false);
+  assert.equal(updatePortraitLeaders(leaders,{userId:'c',score:100,gift:true}),true);
+  assert.equal(new Set(leaders.map(entry=>entry.userId)).size,2);
+});
+
 test('completed machine and nickname-only portraits enter the shared top two',()=>{
   const html=readFileSync(new URL('./index.html',import.meta.url),'utf8');
   const start=html.indexOf('function viewerRankKey(');

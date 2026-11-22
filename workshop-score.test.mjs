@@ -22,18 +22,20 @@ test('non-gift high scores start at the two percent boundary',()=>{
 });
 
 test('gift score bands rise with unit price and cap at 100',()=>{
-  const prices=[1,5,10,50];
-  const expected=[[85,88],[89,92],[93,96],[97,100]];
-  for(let i=0;i<prices.length;i++){
-    const scores=Array.from({length:100},()=>scorePortrait(null,0,1,0,{live:true,giftValue:prices[i]}));
-    assert.ok(scores.every(score=>score>=expected[i][0]&&score<=expected[i][1]));
+  const ordinaryMax=scorePortrait(null,0,0,0,{live:true,random:()=>.99999});
+  assert.equal(ordinaryMax,95);
+  for(const [giftValue,expected] of [[1,96],[2,97],[5,98],[10,99],[50,100],[9999,100]]){
+    for(const live of [true,false]){
+      const score=scorePortrait(null,0,1,0,{live,giftValue});
+      assert.equal(score,expected);
+      assert.ok(score>ordinaryMax);
+    }
   }
 });
 
 test('named gifts without a price use their configured gift level',()=>{
-  for(const [giftLevel,minimum] of [[1,85],[2,89],[3,93],[4,97]]){
-    const scores=Array.from({length:20},()=>scorePortrait(null,0,giftLevel,0,{live:true}));
-    assert.ok(scores.every(score=>score>=minimum&&score<=minimum+3));
+  for(const [giftLevel,expected] of [[1,96],[2,97],[3,98],[4,99]]){
+    assert.equal(scorePortrait(null,0,giftLevel,0,{live:true}),expected);
   }
 });
 

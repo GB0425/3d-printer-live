@@ -66,6 +66,7 @@ export function updatePortraitLeaders(leaders, portrait) {
     ? entry.userId===portrait.userId : false);
   if(previous!==-1&&leaders[previous].score>=portrait.score)return false;
   const next=leaders.filter((_,index)=>index!==previous);
+  if(portrait.gift&&previous===-1&&next.length>=2)next.pop();
   const insert=next.findIndex(entry=>entry.score<portrait.score);
   next.splice(insert===-1?next.length:insert,0,portrait);
   const ranked=next.slice(0,2);

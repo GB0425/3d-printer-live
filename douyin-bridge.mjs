@@ -15,6 +15,7 @@ import {decodeInteraction,ProtocolEventFilter} from './douyin-events.mjs';
 import {preferAvatar} from './avatar-quality.mjs';
 import {namedGiftKey} from './douyin-gifts.mjs';
 const protocolEvents=new ProtocolEventFilter();
+const viewersById=new Map();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOM_RE = /^https:\/\/(?:live\.douyin\.com\/|www\.douyin\.com\/follow\/live\/)([0-9]{5,25})(?=[/?#]|$)/;
@@ -62,6 +63,16 @@ export function parseChatLine(raw) {
 
 export function mapGift(name) {
   return namedGiftKey(name)||'other';
+}
+
+export function parsePageEventRow(row){
+  const event=parseChatLine(row.text);
+  if(event?.kind!=='gift'||!row.previousText)return event;
+  const previous=parseChatLine(row.previousText);
+  if(previous?.kind!=='gift'||previous.name!==event.name||
+    (namedGiftKey(previous.gift)||previous.gift)!==(namedGiftKey(event.gift)||event.gift))return event;
+  if(event.count>previous.count)return {...event,count:event.count-previous.count};
+  return event.count===previous.count?null:event;
 }
 
 // 垃圾名判定：feed卡标签、动作短语等不是观众昵称。
@@ -125,7 +136,7 @@ export function isAvatarUrl(u) {
 
 // 递归收集缓冲里所有"User 形状"的结构：#3 是昵称，#9/10/11/6 内嵌头像 URL。
 // 注意不能在消息体顶层找 #3——ChatMessage 的 #3 是弹幕文本，会张冠李戴。
-export function collectUsers(buf, depth = 0) {
+export function collectUsers(buf, depth = 0, withIds = false) {
   const out = [];
   if (depth > 8) return out;
   const fields = pbDecode(buf);
@@ -134,12 +145,17 @@ export function collectUsers(buf, depth = 0) {
     for (const n of [11, 10, 9, 6]) {
       const field = fields.find(f => f.n === n && f.wire === 2);
       const avatar = field?.buf && imageUrl(field.buf);
-      if (avatar && isAvatarUrl(avatar)) { out.push({ name: nickname, avatar }); break; }
+      if (avatar && isAvatarUrl(avatar)) {
+        const user={name:nickname,avatar};
+        if(withIds)user.userId=String(fields.find(f=>f.n===1&&f.wire===0)?.num||'');
+        out.push(user);
+        break;
+      }
     }
   }
   for (const f of fields) {
     if (f.wire !== 2 || !f.buf?.length || f.buf.length < 16) continue;
-    out.push(...collectUsers(f.buf, depth + 1));
+    out.push(...collectUsers(f.buf, depth + 1, withIds));
   }
   return out;
 }
@@ -172,18 +188,33 @@ function handleWSFrame(buf) {
     const idx = buf.indexOf(Buffer.from([0x1f, 0x8b]));
     if (idx >= 0) { try { payload = zlib.gunzipSync(buf.subarray(idx)); } catch { /* Raw protobuf can contain the gzip magic bytes by coincidence. */ } }
     eachEnvelope(payload, (method, pl) => {
-      const mt = method.match(/^Webcast(Chat|Like|Member|Social|Gift|Fansclub|RoomUserSeq)Message$/);
+      const mt = method.match(/^Webcast(Chat|Like|Member|Social|Gift|LightGift|Fansclub|RoomUserSeq)Message$/);
       if (!mt) return;
       // 消息体里每个 User 结构都自带头像，全部喂进花名册（RoomUserSeq 一次带多名活跃观众）。
-      const users = collectUsers(pl);
-      for (const u of users) feedAvatar(u.name, u.avatar, '协议帧');
-      const event=protocolEvents.accept(decodeInteraction(method,pl,pbDecode,users[0]));
+      const users = collectUsers(pl,0,true);
+      for (const u of users) {
+        feedAvatar(u.name, u.avatar, '协议帧');
+        rememberProtocolViewer(u);
+      }
+      const lightId=method==='WebcastLightGiftMessage'
+        ? String(pbDecode(pl).find(f=>f.n===5&&f.wire===0)?.num||'') : '';
+      const sender=method==='WebcastLightGiftMessage'?viewersById.get(lightId):users[0];
+      const decoded=decodeInteraction(method,pl,pbDecode,sender);
+      if(decoded)rememberProtocolViewer(decoded);
+      const event=protocolEvents.accept(decoded);
       if(event&&hubRef){if(!event.userId&&isJunkName(event.name))return;if(event.type==='gift'){event.gift=mapGift(event.raw);total.gift+=event.count}else if(event.type==='like'){lastWsLikeAt=Date.now();total.like+=event.count}else if(event.type==='join'){lastWsJoinAt=Date.now();total.join++}else if(event.type==='comment')total.comment++;lastEventAt=Date.now();chatSeen=true;publishInteraction(event)}
 
     });
   } catch { }
 }
 
+function rememberProtocolViewer({userId,name,avatar}){
+  if(!userId||!name||isJunkName(name))return;
+  const previous=viewersById.get(userId);
+  viewersById.delete(userId);
+  viewersById.set(userId,{userId,name,avatar:avatar||previous?.avatar||''});
+  if(viewersById.size>4000)viewersById.delete(viewersById.keys().next().value);
+}
 const normMap = new Map();
 // 头像持久缓存：跨重启、跨房间复用已抓到的头像，回访观众零延迟命中。
 const AVATAR_CACHE_FILE = path.join(__dirname, 'avatar-cache.json');
@@ -362,7 +393,7 @@ const COLLECT = String.raw`(() => {
     const t = (e.textContent || '').replace(/\s+/g, ' ').trim();
     if (t && t.length < 20 && t.indexOf('本场点赞') >= 0) { const m = t.match(/([\d.]+)(万)?\s*本场点赞/); if (m) out.likes = Math.round(parseFloat(m[1]) * (m[2] ? 10000 : 1)); break; }
   }
-  const single = t => /^.{1,24}[：:][^：:]{0,80}$/.test(t) || /^.{1,24}(送出|送了)\s*[^：:]{1,20}(\s*[xX×]\s*\d{1,3})?$/.test(t) || /^.{1,20}来了$/.test(t) || /^.{1,24}(关注了主播|加入了?粉丝团|加入了主播的粉丝团|分享了直播|转发了直播|推荐了直播)/.test(t);
+  const single = t => /^.{1,24}[：:][^：:]{0,80}$/.test(t) || /^.{1,24}(送出|送了|送给主播)\s*[^：:]{1,35}$/.test(t) || /^.{1,20}来了$/.test(t) || /^.{1,24}(关注了主播|加入了?粉丝团|加入了主播的粉丝团|分享了直播|转发了直播|推荐了直播)/.test(t);
   const tick = (window.__scanTick = (window.__scanTick || 0) + 1);
   if (!window.__chatRoot?.isConnected || (tick % 16 === 1 && ![...window.__chatRoot.children].some(k=>single((k.innerText||'').replace(/\s+/g,' ').trim())))) {
     let best = null, bestN = 0;
@@ -391,7 +422,7 @@ const COLLECT = String.raw`(() => {
     const text = (node.innerText || '').replace(/\s+/g, ' ').trim();
     let row = rowState.nodes.get(node);
     if (!row || row.text !== text) {
-      row = {id:++rowState.seq,text};
+      row = {id:++rowState.seq,text,previousText:row?.text};
       rowState.nodes.set(node,row);
     }
     return row;
@@ -613,6 +644,7 @@ function resetRoomState() {
   lastLikes = null; chatSeen = false; owner = '';
   rowCursor = new PageRowCursor();
   protocolEvents.reset();
+  viewersById.clear();
   lastEventAt = lastWsLikeAt = lastWsJoinAt = 0;
   roster.clear(); lastSeen.clear();
   normMap.clear();
@@ -899,7 +931,7 @@ async function run(hub) {
     }
     const parsedNames = [];
     for (const row of rowCursor.read(s.rowEpoch,s.rows || [])) {
-      const ev = parseChatLine(row.text);
+      const ev = parsePageEventRow(row);
       if (!ev || ev.kind==='system') continue;
       const key = normKey(ev.name);
       const avatar = avatars[ev.name] || (key && (normMap.get(key) || normAvatars[key])) || lookupAvatar(ev.name) || roster.get(ev.name) || '';
@@ -908,7 +940,8 @@ async function run(hub) {
       const event = {type:ev.kind,name:ev.name,avatar,room:currentRoom,pageEventId:s.rowEpoch+':'+row.id};
       if (ev.kind === 'comment') event.text = ev.text;
       if (ev.kind === 'gift') Object.assign(event,{gift:mapGift(ev.gift),raw:ev.gift,count:ev.count});
-      if (protocolEvents.matchSource(event,'page')) emit(event);
+      const fresh=protocolEvents.acceptPage(event);
+      if (fresh) emit(fresh);
       if (!avatar) parsedNames.push(ev.name);
     }
     if (parsedNames.length) {

@@ -23,8 +23,8 @@ import {WorkshopSession,workshopRules,eventAmount,countWaitingInteractions,FreeP
 import {InteractionGate,giftPlan,referenceRules} from './interaction-plan.mjs?v=douyin-gifts';
 import {NAMED_GIFTS} from './douyin-gifts.mjs';
 import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs?v=complete-halo';
-import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=high-score-2';
-import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-clear';
+import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=gift-score-96';
+import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=gift-always-ranks';
 import {GiftDirector} from './gift-director.mjs?v=frame-right-4';
 const interactionGate=new InteractionGate();
 import {EventAudit} from './event-audit.mjs';
@@ -496,7 +496,7 @@ function recordCompletedLeader(job,product,blessing){
   const previous=champions.live.find(entry=>!entry.live&&entry.name===job.name);
   userId=previous?.userId||'machine:'+String(job.transactionId||job.name||Date.now());
  }
- const record={name:job.name,userId,live:!!job.live,score:job.score,avatar,blessing,lastActiveAt:Date.now()};
+ const record={name:job.name,userId,live:!!job.live,gift:!!job.giftLevel||String(job.source||'').startsWith('礼物'),score:job.score,avatar,blessing,lastActiveAt:Date.now()};
  const existing=champions.live.find(entry=>entry.userId===userId);
  if(existing)existing.lastActiveAt=record.lastActiveAt;
  if(!updatePortraitLeaders(champions[group],record))return;
@@ -939,7 +939,7 @@ function liveEvent(type,user,amount=1,sourceTag,markLive=true,details={}){
   job.gender=user.gender;
   job.stayMinutes=stayMinutes;
   job.score=score;
-  job.scoreScored=!!markLive;
+  job.scoreScored=!!markLive||!!details.giftLevel;
   job.giftLevel=details.giftLevel||0;
   job.priorityValue=details.priorityValue||0;
   if(sourceTag)job.source=sourceTag;
