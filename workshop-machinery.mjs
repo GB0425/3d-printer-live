@@ -86,7 +86,8 @@ export function expirePortraitLeaders(leaders, activityByUser, now, maxIdleMs = 
 }
 
 export function paintChampion(canvas, job, avatar, rank) {
-  const c=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
+  const c=canvas.getContext('2d'), w=768, h=988;
+  c.setTransform(canvas.width/w,0,0,canvas.height/h,0,0);
   const first=rank===1;
   c.clearRect(0,0,w,h);
   c.strokeStyle=first?'#f7e7ff':'#e5b974';
@@ -95,7 +96,7 @@ export function paintChampion(canvas, job, avatar, rank) {
   c.textAlign='center';
   c.textBaseline='middle';
   c.fillStyle=first?'#fff2ff':'#ffe4a8';
-  c.font='bold 70px "Microsoft YaHei",sans-serif';
+  c.font='800 76px "Microsoft YaHei",sans-serif';
   c.fillText(first?'本场第一名':'本场第二名',w/2,h*.10);
   const avatarY=h*.36,radius=225;
   c.fillStyle='#283d4a';
@@ -124,17 +125,17 @@ export function paintChampion(canvas, job, avatar, rank) {
   c.fill();
   const chars=Array.from(job.name||'观众');
   c.fillStyle='#fff4db';
-  c.font='bold 76px "Microsoft YaHei",sans-serif';
+  c.font='800 83px "Microsoft YaHei",sans-serif';
   c.fillText(chars.length>7?chars.slice(0,6).join('')+'…':chars.join(''),w/2,h*.665,w-126);
   c.fillStyle=first?'#fff0fd':'#ffe4a8';
-  c.font='bold 82px "Microsoft YaHei",sans-serif';
+  c.font='900 92px "Microsoft YaHei",sans-serif';
   c.fillText(job.score+' 分',w/2,h*.765);
   if(job.blessing){
-    c.font='bold 72px "Microsoft YaHei",sans-serif';
+    c.font='900 84px "Microsoft YaHei",sans-serif';
     const width=Math.min(w-132,Math.max(252,c.measureText(job.blessing).width+90));
     c.beginPath();
     c.roundRect((w-width)/2,h*.833,width,h*.098,16);
-    c.fillStyle='#64272c';
+    c.fillStyle='#581925';
     c.fill();
     c.lineWidth=4;
     c.strokeStyle='#eac383';

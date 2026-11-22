@@ -24,7 +24,7 @@ import {InteractionGate,giftPlan,referenceRules} from './interaction-plan.mjs?v=
 import {NAMED_GIFTS} from './douyin-gifts.mjs';
 import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs?v=complete-halo';
 import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=high-score-2';
-import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-8';
+import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-clear';
 import {GiftDirector} from './gift-director.mjs?v=frame-right-4';
 const interactionGate=new InteractionGate();
 import {EventAudit} from './event-audit.mjs';
@@ -33,7 +33,7 @@ import {mountWorkshopHUD} from './workshop-hud.mjs?v=named-gifts-only';
 const workshopSession=new WorkshopSession();
 let freePrintDraw=new FreePrintDraw();
 import {SceneChannel} from './scene-channel.mjs';
-import {SceneOutput,AA_MODES} from './scene-output.mjs';
+import {SceneOutput,AA_MODES} from './scene-output.mjs?v=clear-upscale';
 import {FortuneSlip} from './fortune-slip.mjs?v=portrait-center-exit';
 const sceneChan=new SceneChannel();
 let viewPC=null,viewStream=null,lastViewSeen=0,pendingViewIce=[];
@@ -340,7 +340,7 @@ const championFrames=[1,2].map(rank=>{
  const group=new THREE.Group();
  group.visible=false;
  scene.add(group);
- const faceTexture=texture(768,988,()=>{});
+ const faceTexture=texture(1152,1482,()=>{});
  faceTexture.anisotropy=renderer.capabilities.getMaxAnisotropy();
  const frame=box(championWidth,championHeight,.1,0,0,0,brass,group);
  frame.castShadow=false;
