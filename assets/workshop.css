@@ -190,4 +190,3 @@ body.scene-only .canvas{height:100vh!important;aspect-ratio:auto}body.scene-only
 .wh-gift-group{display:flex;align-items:center;gap:.75cqw}
 .wh-gift-icon{display:block;width:1.8cqw;height:1.8cqw;object-fit:contain}
 .wh-portrait .wh-gift-icon{width:4.1cqw;height:4.1cqw}
-.wh-gift-rules .wh-rule>.wh-gift-tier{flex:0 0 auto;padding:.14em .4em;border-radius:.35em;background:#b89aff24;color:#f5eaff}

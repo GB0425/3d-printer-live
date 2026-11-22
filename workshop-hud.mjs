@@ -18,9 +18,6 @@ function giftRuleLabel(row) {
     img.addEventListener('error', () => { label.textContent = row.label; }, {once: true});
     img.src = new URL('./assets/douyin-gifts/' + row.key + '.png', import.meta.url).href;
     label.append(img);
-  } else if (row.key === 'price5' || row.key === 'price10') {
-    label.className = 'wh-gift-tier';
-    label.textContent = row.key === 'price5' ? '5–9 抖币' : '10+ 抖币';
   } else {
     label.textContent = row.label;
   }
@@ -30,6 +27,7 @@ function giftRuleLabel(row) {
 function groupGiftRows(rows) {
   const grouped=[];
   for(const row of rows){
+    if(row.key==='price5'||row.key==='price10')continue;
     if(!Object.hasOwn(NAMED_GIFTS,row.key)){
       grouped.push(row);
       continue;
