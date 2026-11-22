@@ -76,7 +76,7 @@ else if(m&&(m.type==='view-ping'||m.type==='view-ready')){lastViewSeen=Date.now(
 else if(m&&m.type==='view-bye'){closeViewConnection();mirrorConnected=false;setSceneDetached(false);updateYieldNote()}};setInterval(()=>{try{sceneChan.postMessage({type:'who',sid:peerSid,born:peerBorn,scene:SCENE_MODE})}catch(e){}},2000);setInterval(updateYieldNote,2500)}
 import {addRulesDownload} from './download-rules.mjs';
 import {nextRenderScale} from './render-budget.mjs';
-import {PRINT_DEFAULTS,printOptions,renderPrintSettings} from './print-settings.mjs?v=douyin-gifts';
+import {PRINT_DEFAULTS,printOptions,renderPrintSettings} from './print-settings.mjs?v=idle-five-seconds';
 import {GiftSpeech} from './gift-speech.mjs?v=chinese-female-2';
 import {FEMALE_VOICES,isFemaleChineseVoice} from './neural-voices.mjs';
 import {PrinterAudio} from './printer-audio.mjs?v=recorded-only-4';
