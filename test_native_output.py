@@ -1,17 +1,7 @@
 """Native WebView2 integration check. Run with the production app closed."""
 import sys, os, time, json, subprocess, base64, tempfile
-from pathlib import Path
-import webview
 from launch import ensure_server, ROOT
-os.environ['WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS']='--disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling'
-OUT=ROOT/'.output-test';OUT.mkdir(exist_ok=True)
-viewer='--viewer' in sys.argv
-url='http://127.0.0.1:8080/' + ('live-view.html' if viewer else 'index.html')
-server=None
-if not viewer:
-    for name in ['viewer.json','portrait.json','resize.request','main.json','viewer-error.json']:(OUT/name).unlink(missing_ok=True)
-    _,server=ensure_server()
-window=webview.create_window('Output integration '+('viewer' if viewer else 'main'),url,width=1000,height=750)
+OUT=ROOT/'.output-test'
 results=[]
 failed=False
 def evaluate(code):return window.evaluate_js(code)
@@ -53,6 +43,8 @@ def run():
             time.sleep(15)
         else:
             wait("typeof window.printerDiagnostics==='function'")
+            evaluate("(()=>{const s=document.querySelector('#output-resolution');s.value='landscape';s.dispatchEvent(new Event('change'))})()")
+            wait("window.printerDiagnostics().output.join(',')==='1280,720'")
             time.sleep(3)
             original=evaluate('window.printerDiagnostics()')
             for aa in ['off','msaa2','msaa4','msaa8','ssaa15','ssaa2']:
@@ -63,7 +55,7 @@ def run():
                 assert state['internal'][0]<=2560,state
                 results.append(state)
             evaluate("(()=>{const s=document.querySelector('#visual-preset');s.value='high';s.dispatchEvent(new Event('change'))})()")
-            child=subprocess.Popen([sys.executable,__file__,'--viewer'],cwd=ROOT)
+            child=subprocess.Popen([sys.executable,__file__,'--viewer',base_url],cwd=ROOT)
             wait("window.printerDiagnostics().connected==='connected'",50)
             time.sleep(12)
             assert (OUT/'viewer.json').exists(),'Viewer did not produce report'
@@ -88,7 +80,31 @@ def run():
     finally:
         if child:child.terminate()
         window.destroy()
-webview.start(run,gui='edgechromium',private_mode=False,storage_path=tempfile.mkdtemp(prefix='printer-output-'+('viewer' if viewer else 'main')))
-if server:server.shutdown()
+def main():
+    import webview
 
-sys.exit(1 if failed else 0)
+    global viewer, base_url, window
+    os.environ['WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS']='--disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-background-timer-throttling'
+    viewer='--viewer' in sys.argv
+    server=None
+    if viewer:
+        base_url=sys.argv[sys.argv.index('--viewer')+1]
+    else:
+        base_url,server=ensure_server()
+        if server is None:
+            raise SystemExit('Close the running printer before the native output check.')
+        OUT.mkdir(exist_ok=True)
+        for name in ['viewer.json','portrait.json','resize.request','main.json','viewer-error.json']:
+            (OUT/name).unlink(missing_ok=True)
+    url=base_url+('live-view.html' if viewer else 'index.html')
+    window=webview.create_window('Output integration '+('viewer' if viewer else 'main'),url,width=1000,height=750)
+    with tempfile.TemporaryDirectory(prefix='printer-output-'+('viewer' if viewer else 'main'),ignore_cleanup_errors=True) as profile:
+        try:
+            webview.start(run,gui='edgechromium',private_mode=False,storage_path=profile)
+        finally:
+            if server:
+                server.shutdown()
+    return 1 if failed else 0
+
+if __name__=='__main__':
+    sys.exit(main())
