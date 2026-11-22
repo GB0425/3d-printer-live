@@ -1,30 +1,36 @@
 import {PRINT_DEFAULTS,printOptions} from './print-settings.mjs';
+import {NAMED_GIFTS,namedGiftKey} from './douyin-gifts.mjs';
 
-export const GIFT_KINDS=[['heart','小心心 / 爱心'],['duck','加油鸭'],['love','爱你呦'],['beer','大啤酒'],['lollipop','棒棒糖'],['price5','单个 5–9 抖币礼物'],['price10','单个 10 抖币及以上'],['other','其他礼物']];
-export const GIFT_LEVELS={heart:1,beer:2,lollipop:2,duck:3,love:4,price5:2,price10:3,other:1};
+export const GIFT_KINDS=[
+ ...Object.entries(NAMED_GIFTS).map(([key,gift])=>[key,gift.label]),
+ ['price5','单价5–9抖币'],['price10','单价10抖币以上']
+];
+const unitPrice=event=>Number(event.diamondCount??event.unitPrice??event.diamond_count??event.price);
 export function giftLevelFor(event,kind=giftKind(event)){
- const value=Number(event.diamondCount??event.unitPrice??event.diamond_count??event.price);
- if(Number.isFinite(value)&&value>0)return value>=50?4:value>=10?3:value>=5?2:1;
- return GIFT_LEVELS[kind]||1;
+ if(Object.hasOwn(NAMED_GIFTS,kind))return NAMED_GIFTS[kind].level;
+ const price=unitPrice(event);
+ return price>=50?4:kind==='price10'?3:kind==='price5'?2:0;
 }
 export function giftKind(event){
- const name=String(event.raw||event.giftName||event.gift||'');
- if(/爱你哟|爱你呦/.test(name)||event.gift==='love')return 'love';
- if(/加油鸭/.test(name)||event.gift==='duck')return 'duck';
- if(/啤酒/.test(name)||event.gift==='beer')return 'beer';
- if(/棒棒糖/.test(name)||event.gift==='lollipop')return 'lollipop';
- if(/爱心|红心|心心/.test(name)||event.gift==='heart')return 'heart';
+ const named=namedGiftKey(event.raw||event.giftName)||namedGiftKey(event.gift);
+ if(named)return named;
  if(event.gift==='price5'||event.gift==='price10')return event.gift;
- const price=Number(event.diamondCount??event.unitPrice);
+ const price=unitPrice(event);
+ if(!Number.isFinite(price))return null;
  if(Number.isFinite(price)&&price>=10)return 'price10';
  if(Number.isFinite(price)&&price>=5)return 'price5';
- return 'other';
+ return null;
 }
 export function giftPlan(event,settings){
- const kind=giftKind(event),options=printOptions(settings,kind,'礼物');
+ const kind=giftKind(event);
+ if(!kind)return null;
+ const named=Object.hasOwn(NAMED_GIFTS,kind)?NAMED_GIFTS[kind]:null;
+ const options=named?{count:named.count,size:named.size,priority:settings.giftPriority!==false}:printOptions(settings,kind,'礼物');
  const giftLevel=giftLevelFor(event,kind);
- const price=Number(event.diamondCount??event.unitPrice??event.diamond_count??event.price);
- return {kind,...options,giftLevel,priorityValue:giftLevel*1000+(Number.isFinite(price)&&price>0?Math.min(price,999):0),giftName:String(event.raw||event.giftName||GIFT_KINDS.find(([k])=>k===kind)?.[1]||'礼物').slice(0,24)};
+ const receivedPrice=unitPrice(event);
+ const price=Number.isFinite(receivedPrice)&&receivedPrice>0?receivedPrice:named?.price??(kind==='price10'?10:5);
+ const priceTier=price>=50?4:price>=10?3:price>=5?2:1;
+ return {kind,...options,giftLevel,priorityValue:priceTier*1000+Math.min(price,999),giftName:String(event.raw||event.giftName||GIFT_KINDS.find(([k])=>k===kind)?.[1]||'礼物').slice(0,24)};
 }
 export const sizeLabel=size=>size==='huge'?'超大头像':size==='large'?'大头像':'小头像';
 
@@ -52,6 +58,6 @@ export class InteractionGate{
 }
 
 export function referenceRules(settings){
- Object.assign(settings,{comment:true,commentKeyword:'666',like:true,likeThreshold:30,follow:true,fansclub:true,share:true,gift:true,giftPriority:true,commentCount:1,commentSize:'small',likeCount:1,likeSize:'small',followCount:1,followSize:'small',fansclubCount:1,fansclubSize:'small',shareCount:1,shareSize:'small',heartCount:1,beerCount:2,lollipopCount:3,duckCount:2,duckSize:'huge',loveCount:5,loveSize:'huge',price5Count:1,price5Size:'large',price10Count:1,price10Size:'huge',otherCount:5,otherSize:'huge'});
+ Object.assign(settings,{comment:true,commentKeyword:'666',like:true,likeThreshold:30,follow:true,fansclub:true,share:true,gift:true,giftPriority:true,commentCount:1,commentSize:'small',likeCount:1,likeSize:'small',followCount:1,followSize:'small',fansclubCount:1,fansclubSize:'small',shareCount:1,shareSize:'small',price5Count:1,price5Size:'large',price10Count:1,price10Size:'huge'});
  return settings;
 }

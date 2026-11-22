@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {decodeInteraction,ProtocolEventFilter} from './douyin-events.mjs';
 import {pbDecode,parseChatLine,mapGift} from './douyin-bridge.mjs';
+import {giftPlan} from './interaction-plan.mjs';
 const varint=n=>{const bytes=[];let v=BigInt(n);do{let b=Number(v&127n);v>>=7n;if(v)b|=128;bytes.push(b)}while(v);return Buffer.from(bytes)};
 const n=(field,value)=>Buffer.concat([varint(field*8),varint(value)]);
 const b=(field,value)=>{const buf=Buffer.isBuffer(value)?value:Buffer.from(value);return Buffer.concat([varint(field*8+2),varint(buf.length),buf])};
@@ -18,7 +19,27 @@ test('gift price metadata and combo deltas survive protobuf decoding without dup
  assert.deepEqual(got.map(e=>e.count),[1,1]);assert.ok(got.every(e=>e.diamondCount===10));assert.equal(filter.matchSource({type:'gift',name:'协议观众',raw:'测试礼物'},'page'),false);
 });
 test('DOM fallback distinguishes actual share, follow and fanclub lines',()=>{
- assert.equal(parseChatLine('小雨：加入了粉丝团').kind,'fansclub');assert.equal(parseChatLine('小雨分享了直播间').kind,'share');assert.equal(parseChatLine('小雨推荐了直播').kind,'share');assert.equal(parseChatLine('小雨关注了主播').kind,'follow');assert.equal(mapGift('加油鸭'),'duck');assert.equal(mapGift('爱你哟'),'love');
+ assert.equal(parseChatLine('小雨：加入了粉丝团').kind,'fansclub');assert.equal(parseChatLine('小雨分享了直播间').kind,'share');assert.equal(parseChatLine('小雨推荐了直播').kind,'share');assert.equal(parseChatLine('小雨关注了主播').kind,'follow');assert.equal(mapGift('加油鸭'),'duck');assert.equal(mapGift('爱你哟'),'other');
+});
+
+test('popularity tickets decode and deduplicate across page and protocol aliases',()=>{
+ const filter=new ProtocolEventFilter();
+ const gift=Buffer.concat([n(12,1),b(16,'人气票')]);
+ const packet=Buffer.concat([b(1,n(2,600)),n(5,3),b(7,user),b(15,gift)]);
+ const event=decodeInteraction('WebcastGiftMessage',packet,pbDecode);
+ assert.equal(event.count,3);
+ assert.equal(giftPlan(event,{}).kind,'popularity');
+ assert.equal(filter.matchSource({type:'gift',name:event.name,raw:'红色人气票'},'page'),true);
+ assert.equal(filter.accept(event),null);
+});
+
+test('an unpriced page gift does not hide a later priced protocol gift',()=>{
+ const filter=new ProtocolEventFilter();
+ const page={type:'gift',name:'协议观众',raw:'未知规则礼物'};
+ assert.equal(filter.matchSource(page,'page'),true);
+ assert.equal(giftPlan(page,{}),null);
+ const event=filter.accept({...page,diamondCount:9,msgId:'601'});
+ assert.equal(giftPlan(event,{}).kind,'price5');
 });
 
 test('同一人重复 666 独立接收，跨来源镜像各抵消一次',()=>{

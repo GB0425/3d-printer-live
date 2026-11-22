@@ -13,6 +13,7 @@ import { BridgeDelivery } from './bridge-delivery.mjs';
 import zlib from 'node:zlib';
 import {decodeInteraction,ProtocolEventFilter} from './douyin-events.mjs';
 import {preferAvatar} from './avatar-quality.mjs';
+import {namedGiftKey} from './douyin-gifts.mjs';
 const protocolEvents=new ProtocolEventFilter();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,13 @@ const CHROME_CANDIDATES = [
 ];
 
 // —— 纯解析函数（供测试） ——
+function pageGift(name, body){
+  const parts=body.trim().match(/^(?:(\d+)\s*[个张朵束]\s*)?(.+?)(?:\s*[xX×]\s*(\d+))?$/);
+  if(!parts)return null;
+  const count=Number(parts[3]||parts[1]||1);
+  if(!Number.isSafeInteger(count)||count<1)return null;
+  return {kind:'gift',name,gift:parts[2].trim(),count};
+}
 
 export function parseChatLine(raw) {
   const text = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -33,16 +41,16 @@ export function parseChatLine(raw) {
   if (m) {
     const name = m[1].trim(), body = m[2].trim();
     if (!name || isJunkName(name) || body.includes(name+'：') || body.includes(name+':')) return null;
-    const g = body.match(/^(?:送出|送了|送给主播)了?\s*(.+?)(?:\s*[xX×]\s*(\d{1,3}))?$/);
-    if (g && g[1].trim()) return { kind: 'gift', name, gift: g[1].trim(), count: g[2] ? +g[2] : 1 };
+    const g = body.match(/^(?:送出|送了|送给主播)了?\s*(.+)$/);
+    if (g) return pageGift(name,g[1]);
     if (/^(加入了?粉丝团|加入了主播的粉丝团|成为了?粉丝团成员)/.test(body)) return {kind:'fansclub',name};
     if (/^(分享了直播间|分享了直播|分享了主播|转发了直播)/.test(body)) return {kind:'share',name};
     if (/^(关注了主播|关注了直播间|成为新粉丝)/.test(body)) return { kind: 'follow', name };
     if (!body) return null;
     return { kind: 'comment', name, text: body };
   }
-  m = text.match(/^(.{1,24}?)\s*(?:送出|送了|送给主播)了?\s*(.+?)(?:\s*[xX×]\s*(\d{1,3}))?$/);
-  if (m && m[2].trim() && !isJunkName(m[1].trim())) return { kind: 'gift', name: m[1].trim(), gift: m[2].trim(), count: m[3] ? +m[3] : 1 };
+  m = text.match(/^(.{1,24}?)\s*(?:送出|送了|送给主播)了?\s*(.+)$/);
+  if (m && !isJunkName(m[1].trim())) return pageGift(m[1].trim(),m[2]);
   m=text.match(/^(.{1,24}?)\s*(加入了?粉丝团|加入了主播的粉丝团|成为了?粉丝团成员)/);if(m&&!isJunkName(m[1].trim()))return {kind:'fansclub',name:m[1].trim()};
   m=text.match(/^(.{1,24}?)\s*(分享了直播间|分享了直播|分享了主播|转发了直播|推荐了直播)/);if(m&&!isJunkName(m[1].trim()))return {kind:'share',name:m[1].trim()};
   m = text.match(/^(.{1,20}?)\s*来了$/);
@@ -53,12 +61,7 @@ export function parseChatLine(raw) {
 }
 
 export function mapGift(name) {
-  if (/爱你哟|爱你呦/.test(name)) return 'love';
-  if (/加油鸭/.test(name)) return 'duck';
-  if (/啤酒/.test(name)) return 'beer';
-  if (/棒棒糖/.test(name)) return 'lollipop';
-  if (/爱心|红心|心心/.test(name)) return 'heart';
-  return 'other';
+  return namedGiftKey(name)||'other';
 }
 
 // 垃圾名判定：feed卡标签、动作短语等不是观众昵称。

@@ -1,5 +1,7 @@
 // Field references and sampled payload documentation:
 // https://github.com/opedium/douyin-live-proto/blob/master/docs/complete_payload_reference.md
+import {namedGiftKey} from './douyin-gifts.mjs';
+
 export function decodeInteraction(method,payload,decode,fallbackUser){
  const fields=decode(payload),number=(items,n)=>Number(items.find(f=>f.n===n&&f.wire===0)?.num||0n),bytes=(items,n)=>items.find(f=>f.n===n&&f.wire===2)?.buf;
  const str=(items,n)=>bytes(items,n)?.toString('utf8')||'';
@@ -33,7 +35,9 @@ export class ProtocolEventFilter{
  }
  matchSource(event,source){
   const normalize=value=>String(value??'').replace(/[\u200B\uFEFF]/g,'').replace(/\s+/g,' ').trim();
-  const key=JSON.stringify([event.type,normalize(event.name),normalize(event.text??event.raw)]);
+  const raw=normalize(event.text??event.raw);
+  const named=event.type==='gift'?namedGiftKey(raw):null;
+  const key=JSON.stringify([event.type,normalize(event.name),named||raw]);
   const own=this.pending[source],other=this.pending[source==='protocol'?'page':'protocol'];
   const now=Date.now(),windowMs=2500;
   const outstanding=(other.get(key)||[]).filter(time=>now-time<=windowMs);
@@ -43,6 +47,8 @@ export class ProtocolEventFilter{
    return false;
   }
   other.delete(key);
+  // An unpriced page row cannot trigger a generic price rule. Keep the priced protocol event.
+  if(event.type==='gift'&&source==='page'&&!named&&!Number(event.diamondCount))return true;
   const latest=(own.get(key)||[]).filter(time=>now-time<=windowMs);
   latest.push(now);
   own.delete(key);

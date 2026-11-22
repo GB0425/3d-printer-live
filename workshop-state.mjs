@@ -1,5 +1,6 @@
 import {PRINT_DEFAULTS} from './print-settings.mjs';
-import {GIFT_KINDS,giftPlan,sizeLabel} from './interaction-plan.mjs';
+import {GIFT_KINDS,giftPlan,sizeLabel} from './interaction-plan.mjs?v=douyin-gifts';
+import {NAMED_GIFTS} from './douyin-gifts.mjs';
 export const FREE_PRINT_INTERVAL = 30;
 
 export function countWaitingInteractions(queue) {
@@ -84,8 +85,10 @@ export function workshopRules(settings,{freePrint=false}={}) {
     lines.push({icon:key==='comment'?'▣':key==='like'?'♡':'+',label,enabled:!!settings[key],detail:settings[key]?`${count(key+'Count')} 张${size(settings[key+'Size'])}`:'已关闭'});
   }
   if(freePrint)lines.push({icon:'✦',label:'每 '+FREE_PRINT_INTERVAL+' 张抽 1 位',detail:'免费大头像'});
-  const giftOrder={heart:1,beer:2,lollipop:3,price5:4,price10:5,duck:6,love:7,other:8};
-  const giftLabels={duck:'加油鸭',love:'爱你呦',price5:'单价5–9抖币',price10:'单价10抖币以上'};
-  const gifts = settings.gift ? GIFT_KINDS.filter(([key])=>key!=='other').map(([key,label])=>{const plan=giftPlan({gift:key,raw:label},settings);return {key,label:giftLabels[key]||label,detail:key==='other'?`${plan.count} 张${plan.size==='huge'?'至尊大头像':size(plan.size)}`:key==='duck'?`${plan.count} 张${plan.size==='huge'?'至尊头像':size(plan.size)}`:key==='love'?`${plan.count} 张${plan.size==='huge'?'至尊头像':size(plan.size)}`:`${plan.count} 张${size(plan.size)}`}}).sort((a,b)=>giftOrder[a.key]-giftOrder[b.key]) : [];
+  const gifts = settings.gift ? GIFT_KINDS.map(([key,label])=>{
+    const plan=giftPlan({gift:key,raw:label},settings);
+    const title=Object.hasOwn(NAMED_GIFTS,key)&&plan.size==='huge'?'至尊头像':size(plan.size);
+    return {key,label,detail:`${plan.count} 张${title}`};
+  }) : [];
   return {lines,gifts,priority:settings.giftPriority!==false,giftVoice:!!settings.giftVoice};
 }

@@ -1,11 +1,17 @@
 // Shared audience layer: main scene, direct scene and isolated OBS window.
 // All user strings are assigned through textContent, never interpolated as HTML.
-const giftIcons = new Set(['heart', 'beer', 'lollipop', 'duck', 'love']);
+import {NAMED_GIFTS} from './douyin-gifts.mjs';
 
 function giftRuleLabel(row) {
+  if(row.group){
+    const group=document.createElement('span');
+    group.className='wh-gift-group';
+    group.append(...row.group.map(giftRuleLabel));
+    return group;
+  }
   const label = document.createElement('span');
   label.title = row.label;
-  if (giftIcons.has(row.key)) {
+  if (Object.hasOwn(NAMED_GIFTS,row.key)) {
     const img = document.createElement('img');
     img.className = 'wh-gift-icon';
     img.alt = row.label;
@@ -19,6 +25,20 @@ function giftRuleLabel(row) {
     label.textContent = row.label;
   }
   return label;
+}
+
+function groupGiftRows(rows) {
+  const grouped=[];
+  for(const row of rows){
+    if(!Object.hasOwn(NAMED_GIFTS,row.key)){
+      grouped.push(row);
+      continue;
+    }
+    const previous=grouped.at(-1);
+    if(previous?.group&&previous.detail===row.detail)previous.group.push(row);
+    else grouped.push({group:[row],detail:row.detail});
+  }
+  return grouped;
 }
 
 export function mountWorkshopHUD(host, getAspect = () => 16/9) {
@@ -85,7 +105,7 @@ export function mountWorkshopHUD(host, getAspect = () => 16/9) {
         }
       };
       rows('.wh-interactions',r.lines,'↗');
-      rows('.wh-gift-rules',r.gifts);
+      rows('.wh-gift-rules',groupGiftRows(r.gifts));
     }
   }
   return {root,render,destroy(){observer.disconnect();root.remove()}};

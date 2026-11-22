@@ -1,5 +1,9 @@
 export const RULES={like:{count:1,size:'small',label:'点赞'},heart:{count:1,size:'large',priority:true,label:'爱心'},beer:{count:2,size:'large',priority:true,label:'啤酒'},lollipop:{count:3,size:'large',priority:true,label:'棒棒糖'},other:{count:1,size:'large',priority:true,label:'礼物'}};
+import {NAMED_GIFTS} from './douyin-gifts.mjs';
 Object.assign(RULES,{duck:{count:1,size:'huge',priority:true,label:'加油鸭'},love:{count:3,size:'huge',priority:true,label:'爱你呦'},price5:{count:1,size:'large',priority:true,label:'5–9抖币礼物'},price10:{count:1,size:'huge',priority:true,label:'10抖币以上礼物'}});
+for(const [key,{label,count,size}] of Object.entries(NAMED_GIFTS)){
+ if(!Object.hasOwn(RULES,key))RULES[key]={label,count,size,priority:true};
+}
 export class DemoRules{
  constructor(){this.queue=[];this.likes=new Map();this.seen=new Set();this.follows=new Set();this.transactionSeq=0}
  event(type,user,id,amount=1,options={}){

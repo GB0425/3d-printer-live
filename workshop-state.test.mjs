@@ -66,10 +66,12 @@ test('gift combo uses item count, with finite integer event quantities',()=>{
 test('audience rules reflect the exact editable print settings and disabled switches',()=>{
   const settings={...PRINT_DEFAULTS,comment:true,like:false,gift:true,commentCount:3,commentSize:'large',giftSize:'small',beerCount:5};
   const r=workshopRules(settings);assert.equal(r.lines.filter(row=>row.enabled).length,1);assert.equal(r.lines[0].detail,'3 张大头像');
-  assert.equal(r.gifts.find(row=>row.label==='大啤酒').detail,'5 张小头像');
-  for(const [type,label] of [['heart','小心心 / 爱心'],['beer','大啤酒'],['lollipop','棒棒糖']])assert.equal(r.gifts.find(row=>row.label===label).detail,`${printOptions(settings,type).count} 张小头像`);
+  assert.equal(r.gifts.find(row=>row.label==='大啤酒').detail,'2 张大头像');
+  assert.equal(r.gifts.find(row=>row.label==='人气票').detail,'1 张大头像');
+  assert.equal(r.gifts.find(row=>row.label==='棒棒糖').detail,'1 张至尊头像');
   assert.equal(r.gifts.find(row=>row.label==='其他礼物'),undefined);
-  assert.equal(r.gifts.find(row=>row.label==='加油鸭').detail,'2 张至尊头像');
+  assert.equal(r.gifts.find(row=>row.label==='加油鸭').detail,'3 张至尊头像');
+  assert.deepEqual(r.gifts.slice(-2).map(row=>row.key),['price5','price10']);
   assert.equal(printOptions(settings,'other').size,'huge');
   settings.gift=false;settings.comment=false;assert.deepEqual(workshopRules(settings).gifts,[]);assert.equal(workshopRules(settings).lines.filter(row=>row.enabled).length,0);
 });

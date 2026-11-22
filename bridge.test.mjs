@@ -5,6 +5,13 @@ test('评论解析',()=>{assert.deepEqual(parseChatLine('天观星系：打印�
 test('礼物解析(空格形态)',()=>{const r=parseChatLine('蛋小黑 送出 大啤酒 x2');assert.equal(r.kind,'gift');assert.equal(r.name,'蛋小黑');assert.equal(r.gift,'大啤酒');assert.equal(r.count,2)});
 test('礼物解析(冒号形态与默认数量)',()=>{const a=parseChatLine('蛋小黑：送出 棒棒糖 x3');assert.equal(a.kind,'gift');assert.equal(a.gift,'棒棒糖');assert.equal(a.count,3);const b=parseChatLine('蛋小黑 送出了 爱心');assert.equal(b.kind,'gift');assert.equal(b.gift,'爱心');assert.equal(b.count,1)});
 test('礼物映射四类',()=>{assert.equal(mapGift('大啤酒'),'beer');assert.equal(mapGift('小心心'),'heart');assert.equal(mapGift('红心'),'heart');assert.equal(mapGift('棒棒糖'),'lollipop');assert.equal(mapGift('嘉年华'),'other')});
+test('网页礼物行识别人气票与其他新礼物',()=>{
+  for(const [name,key] of [['人气票','popularity'],['红色人气票','popularity'],['玫瑰','rose'],['你真好看','nice'],['鲜花','flower']]){
+    const event=parseChatLine('观众甲：送出 2 张'+name);
+    assert.equal(event.count,2);
+    assert.equal(mapGift(event.gift),key);
+  }
+});
 test('进场与系统消息',()=>{assert.deepEqual(parseChatLine('小小水晶球 来了'),{kind:'join',name:'小小水晶球'});assert.equal(parseChatLine('欢迎来到直播间！抖音严禁未成年人直播或礼物消费。').kind,'system');assert.equal(parseChatLine(''),null);assert.equal(parseChatLine(null),null)});
 test('点赞计数解析',()=>{assert.equal(parseLike('100本场点赞'),100);assert.equal(parseLike('8 本场点赞'),8);assert.equal(parseLike('70.1万本场点赞'),701000);assert.equal(parseLike('71.1万本场点赞'),711000);assert.equal(parseLike('人气榜100+'),null)});
 test('页面旧行不重放，同文新行按各自 ID 接收',()=>{
