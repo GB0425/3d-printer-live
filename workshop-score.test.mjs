@@ -3,16 +3,19 @@ import assert from 'node:assert/strict';
 import {scorePortrait} from './workshop-score.mjs';
 
 test('non-gift interactions mostly score 75–84 and occasionally score 85–95',()=>{
-  const samples=Array.from({length:1000},()=>scorePortrait(null,0,0,0,{live:true}));
+  const samples=Array.from({length:1000},(_,i)=>{
+    const draws=[i/1000,(i%11)/11];
+    return scorePortrait(null,0,0,0,{live:true,random:()=>draws.shift()});
+  });
   assert.ok(samples.every(score=>score>=75&&score<=95));
   const high=samples.filter(score=>score>=85).length;
-  assert.ok(high>20&&high<80);
+  assert.equal(high,20);
   assert.ok(samples.some(score=>score>=85));
   assert.ok(new Set(samples).size>=18);
 });
 
-test('non-gift high score probability is five percent',()=>{
-  const draws=[.949,0,.95,0];
+test('non-gift high scores start at the two percent boundary',()=>{
+  const draws=[.979,0,.98,0];
   const random=()=>draws.shift();
   assert.equal(scorePortrait(null,0,0,0,{live:true,random}),75);
   assert.equal(scorePortrait(null,0,0,0,{live:true,random}),85);

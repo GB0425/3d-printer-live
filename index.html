@@ -22,7 +22,7 @@ if(SCENE_MODE)document.body.classList.add('scene-only');
 import {WorkshopSession,workshopRules,eventAmount} from './workshop-state.mjs';
 import {InteractionGate,giftPlan,referenceRules} from './interaction-plan.mjs';
 import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs?v=complete-halo';
-import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=stay-score-1';
+import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=high-score-2';
 import {createPrinterHeat,paintChampion,updatePortraitLeaders,expirePortraitLeaders} from './workshop-machinery.mjs?v=champion-8';
 import {GiftDirector} from './gift-director.mjs?v=frame-right-4';
 const interactionGate=new InteractionGate();
@@ -74,7 +74,7 @@ else if(m&&(m.type==='view-ping'||m.type==='view-ready')){lastViewSeen=Date.now(
 else if(m&&m.type==='view-bye'){closeViewConnection();mirrorConnected=false;setSceneDetached(false);updateYieldNote()}};setInterval(()=>{try{sceneChan.postMessage({type:'who',sid:peerSid,born:peerBorn,scene:SCENE_MODE})}catch(e){}},2000);setInterval(updateYieldNote,2500)}
 import {addRulesDownload} from './download-rules.mjs';
 import {nextRenderScale} from './render-budget.mjs';
-import {PRINT_DEFAULTS,printOptions,renderPrintSettings} from './print-settings.mjs';
+import {PRINT_DEFAULTS,printOptions,renderPrintSettings} from './print-settings.mjs?v=completion-speech';
 import {GiftSpeech} from './gift-speech.mjs?v=chinese-female-2';
 import {FEMALE_VOICES,isFemaleChineseVoice} from './neural-voices.mjs';
 import {PrinterAudio} from './printer-audio.mjs?v=recorded-only-4';
@@ -639,7 +639,7 @@ function preemptForGift(){
  if(currentProduct)disposeProduct(currentProduct);
  currentProduct=null;transferState=null;active=null;busy=false;phase='idle';elapsed=0;lastPct=-1;articulateArm(0);
 }
-function next(){if(autoDemo)replenishDemo();if(paused||busy||!queue.length)return;busy=true;active=queue.shift();if(!Number.isFinite(active.score))active.score=60+Math.floor(Math.random()*36);currentProduct=createProduct(active);currentProduct.factor=active.size==='huge'?1.85:active.size==='large'?(active.priority||String(active.source||'').startsWith('礼物')?1.6:1.35):1;currentProduct.g.scale.setScalar(currentProduct.factor);currentProduct.g.position.y=.57*(1-currentProduct.factor);prepareFilament(currentProduct);machineAudio.cue('start');if(!active.live)giftSpeech.welcome(active.name);else if(!active.priority&&!active.giftLevel&&active.copy===1)giftSpeech.printing(active.name,false,null,active.transactionId);phase='printing';elapsed=0;renderQueue();$('currentName').textContent=active.name;$('currentImg').src=active.avatar||fallbackAvatar(active.name);$('score').textContent='打印中';updateScreen()}
+function next(){if(autoDemo)replenishDemo();if(paused||busy||!queue.length)return;busy=true;active=queue.shift();if(!Number.isFinite(active.score))active.score=60+Math.floor(Math.random()*36);currentProduct=createProduct(active);currentProduct.factor=active.size==='huge'?1.85:active.size==='large'?(active.priority||String(active.source||'').startsWith('礼物')?1.6:1.35):1;currentProduct.g.scale.setScalar(currentProduct.factor);currentProduct.g.position.y=.57*(1-currentProduct.factor);prepareFilament(currentProduct);machineAudio.cue('start');phase='printing';elapsed=0;renderQueue();$('currentName').textContent=active.name;$('currentImg').src=active.avatar||fallbackAvatar(active.name);$('score').textContent='打印中';updateScreen()}
 let liveWindow=null;
 function setSceneDetached(detached){
  stage.style.display=detached?'none':'';
@@ -909,7 +909,7 @@ function renderQueue(){
   }));
  },50);
 }
-function liveEvent(type,user,amount=1,label,sourceTag,markLive=true,details={}){
+function liveEvent(type,user,amount=1,sourceTag,markLive=true,details={}){
  const options=printOptions(printRules,type,sourceTag);
  const priority=type!=='like'&&!!options.priority;
  const protectTransactionId=busy&&(active?.priority||active?.giftLevel)?active.transactionId:null;
@@ -937,8 +937,6 @@ function liveEvent(type,user,amount=1,label,sourceTag,markLive=true,details={}){
  }
  if(markLive)lastLiveMsgAt=Date.now();
  machineAudio.cue(priority?'gift':'queue');
- if(markLive&&String(sourceTag||'').startsWith('礼物')&&printRules.giftVoice)
-  giftSpeech.say(user.name,label||RULES[type].label,amount);
  if(priority)preemptForGift();
  renderQueue();updateScreen();next();
  return result.added;
@@ -969,13 +967,12 @@ function add(v,isLive=true){
   liveRoom=liveRoom||v.room||'';
   if(type==='gift'){
    const amount=eventAmount(v.count,isLive?Infinity:100),plan=giftPlan(v,printRules);if(isLive)liveStats.gift+=amount;updateLiveStats();
-   if(printRules.gift&&printAllowed())added=liveEvent(plan.kind,user,amount,plan.giftName,'礼物·'+plan.giftName,isLive,plan);
-   else{resultReason=printRules.gift?'另一个窗口负责打印':'礼物打印开关已关闭';if(printRules.giftVoice&&printAllowed())giftSpeech.say(name,plan.giftName,amount);}
+   if(printRules.gift&&printAllowed())added=liveEvent(plan.kind,user,amount,'礼物·'+plan.giftName,isLive,plan);
+   else resultReason=printRules.gift?'另一个窗口负责打印':'礼物打印开关已关闭';
   }else{
    if(isLive&&type==='like')liveStats.like+=eventAmount(v.count);if(isLive&&type==='comment')liveStats.comment++;updateLiveStats();
    const amount=interactionGate.accept({...v,type,name},printRules,isLive),label={comment:'评论',like:'点赞',follow:'关注',join:'进场',fansclub:'粉丝团',share:'分享'}[type];
-   if(amount&&printAllowed())added=liveEvent('like',user,amount,null,label,isLive);else resultReason=amount?'另一个窗口负责打印':interactionGate.reason;
-   if(isLive&&type==='join'&&printRules.joinVoice&&printAllowed())giftSpeech.welcome(name);
+   if(amount&&printAllowed())added=liveEvent('like',user,amount,label,isLive);else resultReason=amount?'另一个窗口负责打印':interactionGate.reason;
   }
   eventAudit.record({...v,type,name},isLive,added,resultReason);requestAuditRender();
   return;
@@ -1084,7 +1081,7 @@ const quickSound=document.createElement('button');quickSound.className='secondar
 let quickOn=true;try{quickOn=localStorage.getItem('printer-sound')!=='off'}catch(e){}
 function syncQuickIcon(icon){const qb=document.querySelector('.stagehead .quick-sound');if(qb)qb.textContent=icon}
 function applyQuickSound(){quickSound.textContent=quickOn?'🔊 关闭声音':'🔇 打开声音';quickSound.title=quickOn?'点击关闭所有声音（音效+播报）':'点击开启所有声音（音效+播报）';quickSound.setAttribute('aria-pressed',String(quickOn));try{localStorage.setItem('printer-sound',quickOn?'on':'off')}catch(e){}}
-function syncVoiceLabel(){const st=document.getElementById('speech-toggle');if(st){st.textContent=giftSpeech.enabled?'互动播报：开':'互动播报：关';st.setAttribute('aria-pressed',String(giftSpeech.enabled))}}
+function syncVoiceLabel(){const st=document.getElementById('speech-toggle');if(st){st.textContent=giftSpeech.enabled?'完成播报：开':'完成播报：关';st.setAttribute('aria-pressed',String(giftSpeech.enabled))}}
 async function applyQuickState(){
   if(quickOn){soundUserMuted=false;giftSpeech.enabled=true;syncVoiceLabel();await unlockSound();quickSound.textContent='🔊'}
   else{soundUserMuted=true;machineAudio.mute();giftSpeech.enabled=false;giftSpeech.stop();syncVoiceLabel();quickSound.textContent='🔇';soundButton.textContent='开启声音';syncQuickIcon('🔇 打开声音');soundButton.setAttribute('aria-pressed','false')}
@@ -1102,7 +1099,7 @@ volume.oninput=()=>{machineAudio.setVolume(Number(volume.value)/100);audioStatus
 function gestureAudio(e){if(!giftSpeech.unlocked){giftSpeech.unlocked=true}if(e.target===soundButton||e.target===soundTest||soundUserMuted)return;if(!machineAudio.enabled||machineAudio.ctx?.state!=='running')unlockSound()}
 document.addEventListener('pointerdown',gestureAudio);document.addEventListener('keydown',gestureAudio);document.addEventListener('visibilitychange',()=>{if(machineAudio.isHidden())machineAudio.silence();else if(machineAudio.enabled&&machineAudio.ctx?.state!=='running')audioStatus.textContent='点击页面恢复声音'});window.addEventListener('pagehide',()=>machineAudio.silence());
 audioStatus.textContent='点击页面即启用声音，也可点击“测试声音”';
-const speechPanel=document.createElement('div');speechPanel.style.cssText='padding:12px 20px;background:#1a202a;border-top:1px solid #343a46';speechPanel.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="speech-toggle" class="secondary" aria-pressed="true">互动播报：开</button><button id="speech-test" class="secondary">试听女声</button><select id="speech-voice" aria-label="播报语音" style="max-width:240px;padding:8px"><option value="">晓伊 · 自然聊天（推荐）</option></select><label>语速 <input id="speech-rate" aria-label="播报语速" type="range" min="0.8" max="1.3" step="0.01" value="1" style="width:90px"></label></div><p id="speech-caption" style="font-size:13px;line-height:1.8;margin-top:8px;color:#decab7" aria-live="polite">自然聊天：欢迎和礼物感谢使用短句，减少重复播报。</p>';
+const speechPanel=document.createElement('div');speechPanel.style.cssText='padding:12px 20px;background:#1a202a;border-top:1px solid #343a46';speechPanel.innerHTML='<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button id="speech-toggle" class="secondary" aria-pressed="true">完成播报：开</button><button id="speech-test" class="secondary">试听女声</button><select id="speech-voice" aria-label="播报语音" style="max-width:240px;padding:8px"><option value="">晓伊 · 自然聊天（推荐）</option></select><label>语速 <input id="speech-rate" aria-label="播报语速" type="range" min="0.8" max="1.3" step="0.01" value="1" style="width:90px"></label></div><p id="speech-caption" style="font-size:13px;line-height:1.8;margin-top:8px;color:#decab7" aria-live="polite">每笔打印完成后播报一次。</p>';
 soundBar.after(speechPanel);const giftSpeech=new GiftSpeech(text=>$('speech-caption').textContent=text);$('speech-rate').value=String(giftSpeech.rate);
 fetch('/__speech-status').then(r=>r.json()).then(s=>{if(s.offline&&localStorage.getItem('printer-offline-voice-v3')!=='on'){giftSpeech.stop();giftSpeech.voiceURI='edge:kokoro-female';localStorage.setItem('printer-female-voice',giftSpeech.voiceURI);localStorage.setItem('printer-offline-voice-v3','on');refreshVoices();$('speech-caption').textContent='本地中文女声已就绪；首次合成需要几秒，之后会缓存下一句。'}}).catch(()=>{});
 window.speechDiagnostics=()=>({voice:giftSpeech.voiceURI,provider:giftSpeech.lastProvider,error:giftSpeech.lastError,speaking:giftSpeech.speaking,audioTime:giftSpeech.audio?.currentTime||0,audioReady:giftSpeech.audio?.readyState||0,queue:giftSpeech.queue.length});
@@ -1111,22 +1108,21 @@ function refreshVoices(){const select=$('speech-voice');select.replaceChildren()
 const speechInfo=document.createElement('p');speechInfo.className='note';speechInfo.style.marginTop='5px';speechInfo.textContent='本地中文女声无需联网；在线晓晓/晓伊需联网，文字会发送至微软语音服务。';speechPanel.append(speechInfo);const fallbackLabel=document.createElement('label');fallbackLabel.style.cssText='display:flex;align-items:center;gap:8px;font-size:12px;color:#a6b4a3;margin-top:8px';const fallbackInput=document.createElement('input');fallbackInput.type='checkbox';fallbackInput.checked=giftSpeech.allowLocalFallback;fallbackInput.style.cssText='width:16px;height:16px';fallbackInput.onchange=()=>{giftSpeech.allowLocalFallback=fallbackInput.checked;try{localStorage.setItem('printer-local-speech-fallback',fallbackInput.checked?'on':'off')}catch{}};fallbackLabel.append(fallbackInput,document.createTextNode('网络失败时用本机女声（机器感较明显）'));speechPanel.append(fallbackLabel);
 
 if(globalThis.speechSynthesis){speechSynthesis.addEventListener('voiceschanged',refreshVoices);refreshVoices()}else $('speech-caption').textContent='当前浏览器不支持语音合成';
-const welcomeButton=document.createElement('button');welcomeButton.className='secondary';welcomeButton.textContent='模拟进入直播间';welcomeButton.onclick=()=>{const p=demoPeople[Number(userSelect.value)]||randomPerson();giftSpeech.welcome(p.name);logDemo(p.name+' 进入直播间');machineAudio.cue('queue')};$('speech-test').after(welcomeButton);
-$('speech-voice').onchange=e=>{giftSpeech.stop();giftSpeech.voiceURI=e.target.value;giftSpeech.retryAfter=0;try{localStorage.setItem('printer-female-voice',giftSpeech.voiceURI)}catch{}refreshVoices()};$('speech-rate').oninput=e=>{giftSpeech.rate=Number(e.target.value);try{localStorage.setItem('printer-speech-rate',String(giftSpeech.rate))}catch{}};$('speech-toggle').onclick=()=>{giftSpeech.enabled=!giftSpeech.enabled;if(!giftSpeech.enabled)giftSpeech.stop();$('speech-toggle').textContent=giftSpeech.enabled?'互动播报：开':'互动播报：关';$('speech-toggle').setAttribute('aria-pressed',String(giftSpeech.enabled))};$('speech-test').onclick=()=>{giftSpeech.stop();giftSpeech.enabled=true;$('speech-toggle').textContent='互动播报：开';$('speech-toggle').setAttribute('aria-pressed','true');giftSpeech.retryAfter=0;giftSpeech.enqueue('来啦，欢迎你呀。坐一会儿，马上轮到你。')};window.addEventListener('pagehide',()=>giftSpeech.stop());
+$('speech-voice').onchange=e=>{giftSpeech.stop();giftSpeech.voiceURI=e.target.value;giftSpeech.retryAfter=0;try{localStorage.setItem('printer-female-voice',giftSpeech.voiceURI)}catch{}refreshVoices()};$('speech-rate').oninput=e=>{giftSpeech.rate=Number(e.target.value);try{localStorage.setItem('printer-speech-rate',String(giftSpeech.rate))}catch{}};$('speech-toggle').onclick=()=>{giftSpeech.enabled=!giftSpeech.enabled;if(!giftSpeech.enabled)giftSpeech.stop();$('speech-toggle').textContent=giftSpeech.enabled?'完成播报：开':'完成播报：关';$('speech-toggle').setAttribute('aria-pressed',String(giftSpeech.enabled))};$('speech-test').onclick=()=>{giftSpeech.stop();giftSpeech.enabled=true;$('speech-toggle').textContent='完成播报：开';$('speech-toggle').setAttribute('aria-pressed','true');giftSpeech.retryAfter=0;giftSpeech.enqueue('头像做好啦，抽到上岸签。')};window.addEventListener('pagehide',()=>giftSpeech.stop());
 // Demo-only panel: no live data connections.
 const connectionPanel=$('connect').closest('.panel');connectionPanel.innerHTML=`<div class="panelhead">规则演示台 <small>仅测试数据</small></div><div class="body"><label class="label">测试观众</label><select id="demo-user" style="width:100%;padding:10px"></select><div id="rule-buttons" style="display:flex;gap:7px;flex-wrap:wrap;margin-top:12px"></div><div class="live-rules" aria-label="评论666打印一张小图，爱心一张大图，啤酒两张大图，棒棒糖三张大图"><div class="rule-row comment-rule"><b>评论 666</b><span>打印一张小图</span></div><div class="rule-row"><img src="assets/generated/original-icons/heart.png" alt="爱心"><span>打印大图一张</span></div><div class="rule-row"><img src="assets/generated/original-icons/beer.png" alt="啤酒"><span>打印大图两张</span></div><div class="rule-row"><img src="assets/generated/original-icons/lollipop.png" alt="棒棒糖"><span>打印大图三张</span></div></div><p class="note">评论 666 → 1张小图<br>爱心 → 1张大图<br>啤酒 → 2张大图<br>棒棒糖 → 3张大图<br>礼物立即插队，普通任务保留后重打。</p><label class="label">批量导入头像（仅本地使用）</label><input id="avatar-files" type="file" accept="image/*" multiple><p class="note" id="avatar-source">正在加载截图整理头像与抽象昵称…</p><label class="label">打印速度（仅打印，转运速度固定）</label><select id="demo-speed"><option value="1">1×</option><option value="4">4×</option><option value="6" selected>6×</option><option value="8">8×</option><option value="12">12× 快速验收</option></select><div class="row"><button id="scenario">运行规则演示</button><button id="reset-demo" class="secondary">清空重置</button></div><div id="demo-log" style="font-size:12px;line-height:1.8;color:#c4d0dc;max-height:180px;overflow:auto;margin-top:12px" aria-live="polite"></div></div>`;
 addRulesDownload(connectionPanel.querySelector('.live-rules'));
 const livePanel=document.createElement('div');livePanel.className='panel';livePanel.innerHTML='<div class="panelhead">直播连接 <small>LIVE ROOM</small></div><div class="body"><div id="live-status" style="font-size:13px;line-height:1.7"><span style="color:#e08f8f">● 未连接 · 本地演示中</span></div><div id="live-room" style="font-size:12px;line-height:1.7"></div><div id="print-progress" style="font-size:12px;line-height:1.7;color:#b9c6d6;margin-top:6px">当前：待命</div><div style="display:flex;gap:6px;margin-top:8px"><input id="room-input" placeholder="填当前直播间分享链接或房间号" style="flex:1;min-width:0;padding:8px;background:#141a24;border:1px solid #333c4c;border-radius:6px;color:#e8eef6;font-size:12px"><button id="room-set" class="secondary" style="padding:8px 12px;white-space:nowrap">切换房间并打开</button></div><p class="note" style="margin:6px 0 0">请填你当前正在直播的抖音房间。程序会另开一个网页直播间窗口读取互动，直播伴侣保持开播即可。</p><div style="margin-top:10px"><button id="room-open" style="width:100%">打开网页直播间</button><div class="row"><button id="capture-start">开始抓取</button><button id="capture-stop" class="secondary">停止抓取</button></div><div id="room-open-status" role="status" style="font-size:12px;line-height:1.7;color:#9fb3c8;margin-top:6px">依次打开网页直播间、确认房间正确并登录，再点「开始抓取」。</div></div><div id="live-fetch" style="font-size:12px;line-height:1.7;color:#9fb3c8;margin-top:6px">抓取状态：连接中…</div><div id="yield-note" style="font-size:12px;line-height:1.7;color:#ffd9a8;margin-top:2px"></div><div class="metrics" style="margin-top:10px"><div class="metric"><small>点赞</small><strong id="stat-likes">0</strong></div><div class="metric"><small>评论</small><strong id="stat-comments">0</strong></div><div class="metric"><small>礼物</small><strong id="stat-gifts">0</strong></div></div><details id="print-rules" open style="margin-top:10px"><summary style="cursor:pointer;color:#d4dce6;font-size:12px;user-select:none">打印规则（修改自动保存）</summary><div id="print-rules-body" style="display:grid;gap:7px;margin-top:9px;font-size:12px;color:#b9c6d6"></div><p class="note" style="margin-top:8px">评论和礼物默认打印；改动立即生效并记住，刷新页面仍保留。</p></details></div>';
 const historyPanel=document.createElement('div');historyPanel.className='panel';historyPanel.innerHTML='<div class="panelhead">打印记录 <small>PRINT LOG</small></div><div class="body"><div id="print-history" class="queue" style="max-height:320px;overflow:auto"></div></div>';
 connectionPanel.before(livePanel,historyPanel);
-const printRules=Object.assign({comment:true,join:false,like:false,follow:false,gift:true,giftVoice:true,joinVoice:true,idleFill:false,demoGapMs:30000},(()=>{try{const s=JSON.parse(localStorage.getItem('printRules')||'{}')||{};if(s.v!==2){delete s.gift;s.v=2}return s}catch(e){return{}}})());
+const printRules=Object.assign({comment:true,join:false,like:false,follow:false,gift:true,idleFill:false,demoGapMs:30000},(()=>{try{const s=JSON.parse(localStorage.getItem('printRules')||'{}')||{};if(s.v!==2){delete s.gift;s.v=2}return s}catch(e){return{}}})());
 for(const [key,value] of Object.entries(PRINT_DEFAULTS)){if(printRules[key]===undefined)printRules[key]=value}
 printRules.v=2;if(Number(printRules.workshopV)<3){referenceRules(printRules);printRules.workshopV=3;}if(Number(printRules.workshopV)<4){if(Number(printRules.loveCount)===5)printRules.loveCount=3;printRules.workshopV=4;try{localStorage.setItem('printRules',JSON.stringify(printRules))}catch(e){}}
 if(Number(printRules.workshopV)<5){printRules.otherCount=5;printRules.otherSize='huge';printRules.workshopV=5;try{localStorage.setItem('printRules',JSON.stringify(printRules))}catch(e){}}
 if(Number(printRules.workshopV)<6){printRules.duckCount=2;printRules.duckSize='huge';printRules.workshopV=6;try{localStorage.setItem('printRules',JSON.stringify(printRules))}catch(e){}}
 if(Number(printRules.workshopV)<7){printRules.loveCount=5;printRules.loveSize='huge';printRules.workshopV=7;try{localStorage.setItem('printRules',JSON.stringify(printRules))}catch(e){}}
 function savePrintRules(){try{localStorage.setItem('printRules',JSON.stringify(printRules))}catch(e){}}
-renderPrintSettings($('print-rules-body'),printRules,savePrintRules);
+renderPrintSettings($('print-rules-body'),printRules,savePrintRules,{completionSpeechOnly:true});
 function sendRoom(raw){if(window.pywebview?.api){openLiveRoomWindow();return}const id=String(raw||'').match(/(\d{5,25})/);const i=$('room-input');if(!id){if(i){i.value='';i.placeholder='没识别出房间号，请填直播间号或链接'}return}const room=id[1];try{localStorage.setItem('printer-live-room',room)}catch(e){}const lr=$('live-room');if(socket&&socket.readyState===1){socket.send(JSON.stringify({type:'set-room',room}));if(lr)lr.innerHTML='<span style="color:#d9b96a">正在切换到直播间 '+room+' …</span>'}else if(lr)lr.innerHTML='<span style="color:#e08f8f">数据桥未连接，点「打开网页直播间」后再开始抓取 '+room+'</span>'}
 async function openLiveRoomWindow(){
  const raw=$('room-input').value.trim();
@@ -1274,7 +1270,7 @@ function testLog(message){const line=document.createElement('div');line.textCont
 function previewWorkshop(key){if(liveMode){testLog('直播连接中，测试已禁用，避免混入真实观众队列。');return}const event=TEST_EVENTS[key];if(!event)return;const user=randomPerson(),name=$('test-name').value.trim().slice(0,24)||'测试观众';const before=queue.length+(busy?1:0);add({...user,...event,name,count:event.type==='gift'?eventAmount($('test-count').value):event.count||1},false);const added=queue.length+(busy?1:0)-before;testLog('测试 '+key+'：新增 '+added+' 件'+(!added?'（开关关闭、口令不符、重复关注或未满点赞阈值）':'') )}
 for(const[key,label]of Object.entries({comment:'评论666',wrongComment:'非口令评论',follow:'关注',fansclub:'加粉丝团',share:'分享',join:'进场',like29:'点赞29下',like:'再点1下',like30:'点赞30下',heart:'小心心',beer:'大啤酒',lollipop:'棒棒糖',duck:'加油鸭',love:'爱你呦',price5:'单价5抖币',price10:'单价10抖币',other:'未知礼物'})){const b=document.createElement('button');b.className='secondary';b.dataset.test=key;b.textContent=label;b.onclick=()=>previewWorkshop(key);$('complete-test-buttons').append(b)}
 $('test-reset').onclick=()=>{if(resetDemo())testLog('已清空测试队列与互动累计。')};
-$('test-reference').onclick=()=>{referenceRules(printRules);savePrintRules();renderPrintSettings($('print-rules-body'),printRules,savePrintRules);testLog('已应用参考规则：评论666 / 点赞30下 / 关注 / 粉丝团 / 分享 / 八类礼物。')};
+$('test-reference').onclick=()=>{referenceRules(printRules);savePrintRules();renderPrintSettings($('print-rules-body'),printRules,savePrintRules,{completionSpeechOnly:true});testLog('已应用参考规则：评论666 / 点赞30下 / 关注 / 粉丝团 / 分享 / 八类礼物。')};
 $('test-all').onclick=()=>{if(!resetDemo())return;for(const key of ['wrongComment','comment','follow','follow','fansclub','fansclub','share','join','like29','like','heart','beer','lollipop','duck','love','price5','price10','other'])previewWorkshop(key)};
 
 const auditPanel=document.createElement('div');auditPanel.className='panel';auditPanel.innerHTML='<div class="panelhead">互动验收记录 <small>EVENT AUDIT</small></div><div class="body"><p class="note" style="margin-top:0">显示实际接收来源、事件 ID、礼物单价、数量和生成作品数。测试记录不能当作实播通过。</p><button id="audit-export" class="secondary">导出验收 JSON</button><div id="interaction-audit" class="note" role="log" style="max-height:300px;overflow:auto"></div></div>';

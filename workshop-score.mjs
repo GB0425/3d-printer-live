@@ -5,7 +5,7 @@ export function scorePortrait(image, theme, giftLevel, seed, options = {}) {
   if (!options.live) return randomScore(65, 74, random);
   if (!giftLevel) {
     const roll = random();
-    return roll < .95
+    return roll < .98
       ? randomScore(75, 84, random)
       : randomScore(85, 95, random);
   }
