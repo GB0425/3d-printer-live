@@ -27,7 +27,7 @@ export function mountWorkshopHUD(host, getAspect = () => 16/9) {
     <div class="wh-rule-stack"><div class="wh-interaction-panel"><div class="wh-section"><b>互动打印</b></div><div class="wh-interactions"></div></div>
     <div class="wh-rules"><div class="wh-section"><b>礼物打印</b></div><div class="wh-gift-rules"></div></div></div>
     <div class="wh-current"><span class="wh-pixel-mark" aria-hidden="true"></span><div class="wh-person"><strong>打印转运中</strong><small class="wh-recipient"></small></div><div class="wh-progress"><b>0%</b><span></span></div></div>
-    <div class="wh-queue-count"><span>排队人数</span><b>0</b><small>人</small></div>`;
+    <div class="wh-queue-count"><span>排队互动</span><b>0</b><small>次</small></div>`;
   host.append(root);
   const nodes=new Map();
   const node=selector=>{if(!nodes.has(selector))nodes.set(selector,root.querySelector(selector));return nodes.get(selector)};
@@ -45,10 +45,10 @@ export function mountWorkshopHUD(host, getAspect = () => 16/9) {
   function render(s) {
     layout(); root.classList.toggle('wh-is-live',!!s.live);
     text('[data-wh="completed"]',s.completed||0);
-    text('.wh-queue-count b',s.waitingPeople??s.waiting??0);
+    text('.wh-queue-count b',s.waitingInteractions??s.waitingPeople??s.waiting??0);
     const job=s.active;
     text('.wh-person strong','打印转运中');
-    text('.wh-recipient',job?.name ? '正在为 '+job.name+' 制作' : '');
+    text('.wh-recipient',job?.name ? (job.freePrint?'免费大头像 · '+job.name:'正在为 '+job.name+' 制作') : '');
     root.querySelector('.wh-current').classList.toggle('wh-has-recipient',!!job?.name);
     root.querySelector('.wh-current').dataset.phase=s.paused?'paused':s.phase||'idle';
     root.querySelector('.wh-current').title=job?.name||'';

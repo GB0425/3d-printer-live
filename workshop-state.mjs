@@ -1,5 +1,35 @@
 import {PRINT_DEFAULTS} from './print-settings.mjs';
 import {GIFT_KINDS,giftPlan,sizeLabel} from './interaction-plan.mjs';
+export const FREE_PRINT_INTERVAL = 30;
+
+export function countWaitingInteractions(queue) {
+  const transactions = new Set();
+  for(const job of queue){
+    if(job.transactionId)transactions.add(job.transactionId);
+  }
+  return transactions.size;
+}
+
+export class FreePrintDraw {
+  constructor() {
+    this.viewers = new Map();
+    this.awarded = 0;
+  }
+  remember(key, viewer, now = Date.now(), room = '') {
+    this.viewers.delete(key);
+    this.viewers.set(key, {viewer, now, room});
+    if(this.viewers.size>128)this.viewers.delete(this.viewers.keys().next().value);
+  }
+  draw(completed, live, demoPeople, now = Date.now(), room = '') {
+    if(completed<(this.awarded+1)*FREE_PRINT_INTERVAL)return null;
+    const candidates = live
+      ? Array.from(this.viewers.values()).filter(entry=>entry.room===room&&now-entry.now<300000).map(entry=>entry.viewer)
+      : demoPeople;
+    if(!candidates.length)return null;
+    this.awarded++;
+    return candidates[Math.floor(Math.random()*candidates.length)];
+  }
+}
 // Counts represent received events in this page session, never room-wide totals.
 export function eventAmount(value, limit = Infinity) {
   const n = Math.floor(Number(value));
@@ -25,6 +55,7 @@ export class WorkshopSession {
     }
   }
   complete(job) { (job.live ? this.live : this.demo).completed++; }
+  get totalCompleted() { return this.live.completed + this.demo.completed; }
   resetDemo() { this.demo = this.empty(); }
   snapshot(live) {
     const b = live ? this.live : this.demo;
@@ -44,7 +75,7 @@ export class WorkshopSession {
   }
 }
 
-export function workshopRules(settings) {
+export function workshopRules(settings,{freePrint=false}={}) {
   const size = sizeLabel;
   const count = key => Number.isInteger(Number(settings[key])) && Number(settings[key])>=1 && Number(settings[key])<=10 ? Number(settings[key]) : PRINT_DEFAULTS[key];
   const lines = [];
@@ -52,6 +83,7 @@ export function workshopRules(settings) {
     if(key==='join'&&!settings[key])continue;
     lines.push({icon:key==='comment'?'▣':key==='like'?'♡':'+',label,enabled:!!settings[key],detail:settings[key]?`${count(key+'Count')} 张${size(settings[key+'Size'])}`:'已关闭'});
   }
+  if(freePrint)lines.push({icon:'✦',label:'每 '+FREE_PRINT_INTERVAL+' 张抽 1 位',detail:'免费大头像'});
   const giftOrder={heart:1,beer:2,lollipop:3,price5:4,price10:5,duck:6,love:7,other:8};
   const giftLabels={duck:'加油鸭',love:'爱你呦',price5:'单价5–9抖币',price10:'单价10抖币以上'};
   const gifts = settings.gift ? GIFT_KINDS.filter(([key])=>key!=='other').map(([key,label])=>{const plan=giftPlan({gift:key,raw:label},settings);return {key,label:giftLabels[key]||label,detail:key==='other'?`${plan.count} 张${plan.size==='huge'?'至尊大头像':size(plan.size)}`:key==='duck'?`${plan.count} 张${plan.size==='huge'?'至尊头像':size(plan.size)}`:key==='love'?`${plan.count} 张${plan.size==='huge'?'至尊头像':size(plan.size)}`:`${plan.count} 张${size(plan.size)}`}}).sort((a,b)=>giftOrder[a.key]-giftOrder[b.key]) : [];

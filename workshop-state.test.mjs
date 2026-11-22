@@ -1,6 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {WorkshopSession,eventAmount,workshopRules} from './workshop-state.mjs';
+import {WorkshopSession,eventAmount,workshopRules,countWaitingInteractions,FreePrintDraw} from './workshop-state.mjs';
+
+test('milestone draw counts machine prints and waits for an eligible real viewer in live mode',()=>{
+  const session=new WorkshopSession(), draw=new FreePrintDraw();
+  const machine={live:false}, viewer={live:true,name:'观众甲'};
+  for(let n=0;n<29;n++)session.complete(machine);
+  draw.remember('viewer',viewer,0);
+  assert.equal(draw.draw(session.totalCompleted,true,[machine],0),null);
+  session.complete(viewer);
+  assert.equal(session.totalCompleted,30);
+  assert.equal(draw.draw(session.totalCompleted,true,[machine],300000),null);
+  draw.remember('viewer',viewer,300001);
+  assert.equal(draw.draw(session.totalCompleted,true,[machine],300001),viewer);
+  assert.equal(draw.draw(session.totalCompleted,true,[machine],300001),null);
+  assert.equal(draw.draw(60,false,[machine]),machine);
+});
+
+test('queued interactions count triggers, including repeat viewers and multi-copy gifts',()=>{
+  const queued=[
+    {userId:'same',transactionId:'tx-1'},
+    {userId:'same',transactionId:'tx-2'},
+    {userId:'same',transactionId:'tx-2'},
+    {freePrint:true}, {source:'空闲补位'}
+  ];
+  assert.equal(countWaitingInteractions(queued),2);
+  assert.equal(countWaitingInteractions([]),0);
+});
 import {PRINT_DEFAULTS,printOptions} from './print-settings.mjs';
 import {InteractionGate} from './interaction-plan.mjs';
 import {DemoRules} from './demo-rules.mjs';

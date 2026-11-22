@@ -19,7 +19,7 @@ body.scene-only{background:#0b0e14}
 </style><meta name="referrer" content="no-referrer"><link rel="stylesheet" href="assets/live-rules.css"><link rel="stylesheet" href="assets/workshop.css?v=20261122-gift-icons"></head><body><div class="ad-strip"><span class="zg">本程序由 志哥AI 免费开源出品</span><span>·</span><span><b>完全免费</b>，不收取任何费用</span><span>·</span><span>想要同款直播程序或定制开发？<b>600～1800 元</b>即可完整定制，加志哥本人微信：</span><button type="button" class="wx" data-wx="EEEyuan99" title="点击复制微信号">EEEyuan99</button><button type="button" class="wx" data-wx="19372388661" title="点击复制微信号">19372388661</button></div><script src="wx-copy.js"></script><header><div class="brand"><b>✳</b> 观众造物工坊 <span class="tag">THE LITTLE MAKER CLUB</span> <a href="./features.html" style="color:#9fc3e8;font-size:11px;text-decoration:none;margin-left:6px">功能介绍</a> <a href="./guide.html" style="color:#9fc3e8;font-size:11px;text-decoration:none;margin-left:2px">使用教程</a> <a href="./index-en.html" hreflang="en" style="color:#ffd9a8;font-size:11px;text-decoration:none;margin-left:2px" title="Switch to English version">English</a></div><div class="status"><i class="dot"></i><span id="status">演示模式</span></div></header><main><div class="top"><div><h1>直播打印台</h1><p>评论互动 · 礼物打印</p></div><div class="badge" id="mode">● 演示数据</div></div><div class="layout"><section class="panel"><div class="stagehead"><span>工坊现场 <small style="margin-left:10px">LIVE ATELIER</small></span><small>自由机位 · 可拖动检查模型</small></div><div class="canvas" id="stage"><div class="overlay"><strong>AVATAR PRINTER 01</strong>正在制作观众的专属头像<br>打印完成后自动切换下一位</div><div class="live">● LIVE PREVIEW</div><div class="result"><img id="currentImg" alt="当前头像"><div><span id="currentName">等待头像进入队列</span><strong id="score">-- <small>分</small></strong></div></div></div><div class="controls"><button id="demo">添加演示头像</button><button class="secondary" id="toggle">暂停打印</button><button class="secondary" id="skip">跳过当前</button><span class="hint">工坊评分按头像画面和当期主题计算 · 娱乐用途</span></div></section><aside class="side"><div class="panel"><div class="panelhead">直播连接 <small>LIVE CONNECTION</small></div><div class="body"><label class="label" for="url">本地数据桥 WebSocket 地址</label><input id="url" value="ws://127.0.0.1:8765" spellcheck="false"><div class="row"><button id="connect">连接数据桥</button><button class="secondary" id="disconnect">断开</button></div><p class="note">需另外运行能获取直播事件的数据桥。连接后接收头像 URL 和昵称；本页面不会直接登录抖音。</p></div></div><div class="panel"><div class="panelhead">本场数据 <small>SESSION</small></div><div class="body metrics"><div class="metric"><small>已打印</small><strong id="count">0</strong></div><div class="metric"><small>等待中</small><strong id="waiting">0</strong></div></div></div><div class="panel"><div class="panelhead">打印队列 <small>QUEUE</small></div><div class="body queue" id="queue"><div class="empty">队列空空的，等待观众加入</div></div></div></aside></div><footer>数据格式：WebSocket 文本消息 JSON，例如 {"name":"观众昵称","avatar":"https://..."}，也支持 {"nickname":"...","avatarUrl":"..."}。请使用你有权使用的直播数据接入方式。</footer></main><script type="importmap">{"imports":{"three":"./assets/three.module.js"}}</script><script type="module">
 const SCENE_MODE=/[?&]scene\b/.test(location.search);
 if(SCENE_MODE)document.body.classList.add('scene-only');
-import {WorkshopSession,workshopRules,eventAmount} from './workshop-state.mjs';
+import {WorkshopSession,workshopRules,eventAmount,countWaitingInteractions,FreePrintDraw} from './workshop-state.mjs?v=free-print';
 import {InteractionGate,giftPlan,referenceRules} from './interaction-plan.mjs';
 import {decorateGift,GIFT_STYLES,LABEL_LAYOUT} from './gift-product.mjs?v=complete-halo';
 import {SCORE_THEMES,scorePortrait} from './workshop-score.mjs?v=high-score-2';
@@ -28,8 +28,9 @@ import {GiftDirector} from './gift-director.mjs?v=frame-right-4';
 const interactionGate=new InteractionGate();
 import {EventAudit} from './event-audit.mjs';
 const eventAudit=new EventAudit();
-import {mountWorkshopHUD} from './workshop-hud.mjs?v=gift-icons';
+import {mountWorkshopHUD} from './workshop-hud.mjs?v=free-print';
 const workshopSession=new WorkshopSession();
+let freePrintDraw=new FreePrintDraw();
 import {SceneChannel} from './scene-channel.mjs';
 import {SceneOutput,AA_MODES} from './scene-output.mjs';
 import {FortuneSlip} from './fortune-slip.mjs?v=portrait-center-exit';
@@ -632,6 +633,15 @@ function idleTestFill(){
  queue.push({...person,size:'small',priority:false,live:false,source:'空闲补位·测试头像',copy:1,total:1});
  machineAudio.cue('queue');renderQueue();next();
 }
+function enqueueFreePrint(){
+ const live=liveMode||liveEverConnected;
+ const viewer=freePrintDraw.draw(workshopSession.totalCompleted,live,demoPeople,Date.now(),liveRoom);
+ if(!viewer)return false;
+ queue.push({...viewer,size:'large',priority:false,live,freePrint:true,source:'随机事件·免费大头像',
+  copy:1,total:1});
+ renderQueue();
+ return true;
+}
 function preemptForGift(){
  if(paused||!busy||phase!=='printing'||active?.priority||active?.giftLevel||!queue[0]?.priority)return;
  let at=queue.findIndex(job=>!job.priority);if(at<0)at=queue.length;
@@ -810,6 +820,7 @@ function finishPrint(){
  currentProduct.bead.visible=false;
  currentProduct.filament.geometry.setDrawRange(0,Infinity);
  logPrint(active);
+ enqueueFreePrint();
  recordCompletedLeader(active,currentProduct,blessing);
  const pp=$('print-progress');
  if(pp)pp.textContent='当前：'+active.name+' · 出分 '+active.score+'分';
@@ -877,15 +888,13 @@ function animate(now){
 }
 
 const demoEngine=new DemoRules();let queue=demoEngine.queue,count=0,paused=false,busy=false,socket,timer;const placeholder='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#f2b59c"/><circle cx="50" cy="38" r="20" fill="#fff"/><path d="M15 100c3-40 67-40 70 0" fill="#fff"/></svg>');$('currentImg').src=placeholder;function fallbackAvatar(name){const safe=String(name||'').replace(/[<>\n\r]/g,'').trim()||'客人';let h=0;for(let i=0;i<safe.length;i++)h=(h*31+safe.charCodeAt(i))>>>0;const pals=[['#ffb284','#c96f4a'],['#a9b8f4','#5a6fd6'],['#91cbb1','#4d927b'],['#efa8b9','#d16a86'],['#e6bc6a','#bd8f3a'],['#ba9ee0','#7e5cc0'],['#89b9cd','#4f88a5'],['#d8b992','#a5825c']];const p=pals[h%pals.length];const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d');const g=x.createLinearGradient(0,0,128,128);g.addColorStop(0,p[0]);g.addColorStop(1,p[1]);x.fillStyle=g;x.fillRect(0,0,128,128);x.fillStyle='rgba(255,255,255,.22)';for(let i=0;i<5;i++){x.beginPath();x.arc((h>>>(i*5))%128,(h>>>(i*7))%128,Math.max(2,10+((h>>>(i*3))%22)),0,7);x.fill()}x.fillStyle='#fff';x.font='800 54px "Microsoft YaHei",sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(safe.slice(0,1),64,68);return c.toDataURL('image/png')}
-let waitingPeople=0,queueRefreshPending=false,visibleQueue=[];
+let waitingInteractions=0,queueRefreshPending=false,visibleQueue=[];
 function renderQueue(){
  if(queueRefreshPending)return;
  queueRefreshPending=true;
  setTimeout(()=>{
   queueRefreshPending=false;
-  const people=new Set();
-  for(const job of queue)people.add(String(job.userId||job.name));
-  waitingPeople=people.size;
+  waitingInteractions=countWaitingInteractions(queue);
   $('waiting').textContent=queue.length;
   const visible=queue.slice(0,5),list=$('queue');
   if(visible.length===visibleQueue.length&&visible.every((job,i)=>job===visibleQueue[i])&&list.childElementCount)return;
@@ -951,6 +960,7 @@ function add(v,isLive=true){
   const user={name,avatar,userId:v.userId,gender:isLive?v.gender:undefined};
   if(isLive){
    const key=viewerRankKey(v.userId,name),now=Date.now(),since=viewerSince.live.get(key)??now;
+   if(v.name||v.nickname)freePrintDraw.remember(key,user,now,String(v.room||liveRoom));
    viewerSince.live.delete(key);
    viewerSince.live.set(key,since);
    if(viewerSince.live.size>16000)viewerSince.live.delete(viewerSince.live.keys().next().value);
@@ -964,7 +974,7 @@ function add(v,isLive=true){
    if(leader)leader.lastActiveAt=now;
   }
   let resultReason='',added=0;
-  liveRoom=liveRoom||v.room||'';
+  liveRoom=liveRoom||String(v.room||'');
   if(type==='gift'){
    const amount=eventAmount(v.count,isLive?Infinity:100),plan=giftPlan(v,printRules);if(isLive)liveStats.gift+=amount;updateLiveStats();
    if(printRules.gift&&printAllowed())added=liveEvent(plan.kind,user,amount,'礼物·'+plan.giftName,isLive,plan);
@@ -975,6 +985,7 @@ function add(v,isLive=true){
    if(amount&&printAllowed())added=liveEvent('like',user,amount,label,isLive);else resultReason=amount?'另一个窗口负责打印':interactionGate.reason;
   }
   eventAudit.record({...v,type,name},isLive,added,resultReason);requestAuditRender();
+  if(isLive&&printAllowed()&&enqueueFreePrint())next();
   return;
  }
  if(type==='capture-status'){const f=$('live-fetch');if(f)f.textContent='抓取：直播间窗口已断开，正在重连…';return}
@@ -1179,7 +1190,7 @@ function renderHistory(){
  if(box)box.innerHTML='<div class="empty">还没有打印记录，等第一位观众触发</div>';
 }
 const completedJobs=new WeakSet();
-function logPrint(job){if(!job||completedJobs.has(job))return;completedJobs.add(job);count++;$('count').textContent=count;workshopSession.complete(job);printRecords.unshift({name:job.name,live:!!job.live,avatar:job.avatar||'',source:job.source||'',score:job.score,size:job.size,time:new Date().toTimeString().slice(0,8)});if(printRecords.length>400)printRecords.pop();appendHistoryRecord(printRecords[0])}
+function logPrint(job){if(!job||completedJobs.has(job))return;completedJobs.add(job);workshopSession.complete(job);count=workshopSession.totalCompleted;$('count').textContent=count;printRecords.unshift({name:job.name,live:!!job.live,avatar:job.avatar||'',source:job.source||'',score:job.score,size:job.size,time:new Date().toTimeString().slice(0,8)});if(printRecords.length>400)printRecords.pop();appendHistoryRecord(printRecords[0])}
 renderHistory();
 const userSelect=$('demo-user');demoPeople.forEach((p,i)=>{let o=document.createElement('option');o.value=i;o.textContent=p.name;userSelect.append(o)});
 function logDemo(message){let line=document.createElement('div');line.textContent=message;$('demo-log').prepend(line);while($('demo-log').children.length>20)$('demo-log').lastChild.remove()}
@@ -1195,7 +1206,7 @@ function resetDemo(){
   testLog('直播已连接或真人头像仍在制作，测试队列暂不可重置。');
   return false;
  }
- interactionGate.reset();workshopSession.resetDemo();champions.live=champions.live.filter(entry=>entry.live);scoreCards.clear();giftSpeech.stop();machineAudio.cue('reset');if(currentProduct)disposeProduct(currentProduct);for(const p of products)disposeProduct(p);products.length=0;currentProduct=null;transferState=null;active=null;queue.length=0;demoEngine.likes.clear();demoEngine.seen.clear();demoEngine.follows.clear();busy=false;paused=false;phase='idle';elapsed=0;count=0;lastLiveMsgAt=Date.now();articulateArm(0);$('count').textContent='0';$('score').textContent='等待打印';$('currentName').textContent='测试已重置';$('currentImg').src=placeholder;$('toggle').textContent='暂停打印';renderQueue();updateScreen();$('demo-log').innerHTML='';
+ interactionGate.reset();workshopSession.resetDemo();if(!liveEverConnected)freePrintDraw=new FreePrintDraw();champions.live=champions.live.filter(entry=>entry.live);scoreCards.clear();giftSpeech.stop();machineAudio.cue('reset');if(currentProduct)disposeProduct(currentProduct);for(const p of products)disposeProduct(p);products.length=0;currentProduct=null;transferState=null;active=null;queue.length=0;demoEngine.likes.clear();demoEngine.seen.clear();demoEngine.follows.clear();busy=false;paused=false;phase='idle';elapsed=0;count=workshopSession.totalCompleted;lastLiveMsgAt=Date.now();articulateArm(0);$('count').textContent=count;$('score').textContent='等待打印';$('currentName').textContent='测试已重置';$('currentImg').src=placeholder;$('toggle').textContent='暂停打印';renderQueue();updateScreen();$('demo-log').innerHTML='';
  return true;
 }
 $('reset-demo').onclick=resetDemo;
@@ -1285,8 +1296,8 @@ function renderAudit(){const box=$('interaction-audit');if(!box)return;box.repla
 $('audit-export').onclick=()=>{const blob=new Blob([JSON.stringify(eventAudit.export(),null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='interaction-audit-'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),30000)};renderAudit();
 function workshopSnapshot(){
   const data=workshopSession.snapshot(liveMode);
-  return {...data,live:liveMode,visible:workshopVisible,paused,rules:workshopRules(printRules),waiting:queue.length,waitingPeople,
-    active:busy&&active?{name:active.name,source:active.source,size:active.size,priority:active.priority,total:active.total,copy:active.copy,live:!!active.live,giftLevel:active.giftLevel||0,giftName:active.giftName||''}:null,
+  return {...data,completed:workshopSession.totalCompleted,live:liveMode,visible:workshopVisible,paused,rules:workshopRules(printRules,{freePrint:true}),waiting:queue.length,waitingInteractions,
+    active:busy&&active?{name:active.name,source:active.source,size:active.size,priority:active.priority,total:active.total,copy:active.copy,live:!!active.live,freePrint:!!active.freePrint,giftLevel:active.giftLevel||0,giftName:active.giftName||''}:null,
     progress:busy?(phase==='printing'?Math.round(Math.min(1,elapsed/printDuration)*100):100):0,phase,
     next:queue.slice(0,3).map(j=>({name:j.name,priority:j.priority,live:!!j.live}))};
 }
